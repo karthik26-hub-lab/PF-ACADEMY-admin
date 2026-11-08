@@ -1,0 +1,69 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Crisp product UI: zinc neutrals, one blue accent, thin borders, compact type. */
+@layer base {
+  :root {
+    --bg: 0 0% 100%;
+    --panel: 0 0% 100%;
+    --subtle: 240 5% 97.5%;
+    --hover: 240 5% 95.5%;
+    --border: 240 6% 91%;
+    --border-strong: 240 5% 84%;
+    --fg: 240 10% 4%;
+    --muted: 240 4% 42%;
+    --faint: 240 4% 62%;
+    --accent: 221 83% 53%;
+    --accent-fg: 0 0% 100%;
+    --accent-soft: 221 90% 96%;
+    --good: 152 62% 34%;
+    --good-soft: 145 70% 95%;
+    --warn: 32 92% 38%;
+    --warn-soft: 45 100% 94%;
+    --bad: 0 70% 48%;
+    --bad-soft: 0 90% 96%;
+    --shadow: 240 10% 4%;
+    color-scheme: light;
+  }
+  .dark {
+    --bg: 240 6% 6%;
+    --panel: 240 5% 8%;
+    --subtle: 240 5% 9.5%;
+    --hover: 240 4% 13%;
+    --border: 240 4% 15%;
+    --border-strong: 240 4% 22%;
+    --fg: 240 5% 94%;
+    --muted: 240 4% 62%;
+    --faint: 240 4% 44%;
+    --accent: 217 91% 62%;
+    --accent-fg: 0 0% 100%;
+    --accent-soft: 220 50% 16%;
+    --good: 150 55% 52%;
+    --good-soft: 152 40% 13%;
+    --warn: 38 92% 58%;
+    --warn-soft: 35 50% 13%;
+    --bad: 0 80% 66%;
+    --bad-soft: 0 40% 14%;
+    --shadow: 0 0% 0%;
+    color-scheme: dark;
+  }
+  html, body, #root { height: 100%; }
+  body {
+    @apply bg-bg text-fg font-sans text-sm antialiased;
+    font-feature-settings: 'cv11', 'ss01', 'ss03';
+  }
+  * { @apply border-border; }
+  ::selection { background: hsl(var(--accent) / 0.2); }
+  :focus-visible { outline: 2px solid hsl(var(--accent)); outline-offset: 2px; border-radius: 4px; }
+  input[type='date']::-webkit-calendar-picker-indicator,
+  input[type='time']::-webkit-calendar-picker-indicator,
+  input[type='datetime-local']::-webkit-calendar-picker-indicator { opacity: 0.55; cursor: pointer; }
+  .dark input::-webkit-calendar-picker-indicator { filter: invert(1); }
+  @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation: none !important; transition: none !important; } }
+}
+
+@layer components {
+  .tnum { font-variant-numeric: tabular-nums; }
+  .scroll-thin { scrollbar-width: thin; scrollbar-color: hsl(var(--border-strong)) transparent; }
+}
