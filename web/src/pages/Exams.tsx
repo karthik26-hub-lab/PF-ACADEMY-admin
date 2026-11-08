@@ -1,11 +1,12 @@
-import { FileText, Plus, Search } from 'lucide-react';
+import { Download, FileText, Plus, Search } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { useUI } from '../lib/ui-state';
 import { Page } from '../components/layout/Page';
-import { Badge, Card, EmptyState, Input, PageHeader, Segmented, StatusPill, Table, Td, Th, btn } from '../components/ui';
+import { Badge, Button, Card, EmptyState, Input, PageHeader, Segmented, StatusPill, Table, Td, Th, btn } from '../components/ui';
 import { href, navigate } from '../lib/router';
 import { examStatus, POLICY, useStore, type ExamStatus } from '../lib/store';
-import { fmtDateTime } from '../lib/utils';
+import { downloadCSV, fmtDateTime } from '../lib/utils';
+import { toast } from 'sonner';
 
 export function Exams() {
   const { exams, batches, students } = useStore();
@@ -38,6 +39,10 @@ export function Exams() {
               <Search className="pointer-events-none absolute left-3.5 top-1/2 size-4 -translate-y-1/2 text-faint" />
               <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Filter by title" className="pl-10" aria-label="Filter exams" />
             </div>
+            <Button disabled={!shown.length} onClick={() => {
+              void downloadCSV(`exams-${new Date().toISOString().slice(0, 10)}.csv`, [['Exam', 'Subject', 'Type', 'Status', 'Batches', 'Opens', 'Closes', 'Uploads', 'Flagged', 'Published', 'Results rule'],
+                ...shown.map(({ e, st }) => [e.title, e.subject, e.kind ?? '', st, e.batchIds.map(bname).join('; '), e.mode === 'timed' ? fmtDateTime(e.opensAt) : 'Open practice', e.mode === 'timed' ? fmtDateTime(e.closesAt) : '', e.received, e.flagged, e.published, POLICY[e.policy].short])]).then((ok) => ok && toast.success(`Exported ${shown.length} exams`));
+            }}><Download /> Export</Button>
           </div>
           <Table>
             <thead><tr><Th>Exam</Th><Th>Status</Th><Th>Batches</Th><Th>Window</Th><Th className="text-right">Uploads</Th><Th>Results</Th></tr></thead>

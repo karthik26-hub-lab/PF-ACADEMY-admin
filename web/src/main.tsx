@@ -8,6 +8,8 @@ import { useStore } from './lib/store';
 import { applyTheme, systemIsDark, useUI } from './lib/ui-state';
 import { TopNav } from './components/layout/TopNav';
 import { CommandMenu } from './components/layout/CommandMenu';
+import { Shortcuts } from './components/layout/Shortcuts';
+import { OfflineBanner } from './components/layout/OfflineBanner';
 import { Dialogs } from './components/Dialogs';
 import { TooltipProvider } from './components/ui';
 import { Login } from './pages/Login';
@@ -71,6 +73,7 @@ function App() {
         {page}
       </div>
       <CommandMenu />
+      <Shortcuts />
       <Dialogs />
     </TooltipProvider>
   );
@@ -82,6 +85,7 @@ function Root() {
   return (
     <>
       <App />
+      <OfflineBanner />
       <Toaster position="bottom-right" theme={dark ? 'dark' : 'light'} toastOptions={{ className: '!rounded-2xl !text-sm !border-border !shadow-pop' }} />
     </>
   );

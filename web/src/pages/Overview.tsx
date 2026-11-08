@@ -1,5 +1,5 @@
 import { motion } from 'framer-motion';
-import { ArrowRight, BookOpen, Download, FileText, GraduationCap, Layers, Plus, Upload, Users } from 'lucide-react';
+import { ArrowRight, BookOpen, CircleCheck, Download, FileText, GraduationCap, Inbox, Layers, Plus, Radio, ScanLine, Upload, Users, Wallet } from 'lucide-react';
 import type { ReactNode } from 'react';
 import { Delta, Donut, HatchedBars, Sparkline } from '../components/charts';
 import { Page } from '../components/layout/Page';
@@ -7,7 +7,8 @@ import { AnimatedNumber, Avatar, Badge, Button, EmptyState, btn } from '../compo
 import { href, navigate, type Route } from '../lib/router';
 import { examStatus, inr, useStore } from '../lib/store';
 import { useUI } from '../lib/ui-state';
-import { cn, fmtDate, timeAgo } from '../lib/utils';
+import { cn, fmtDate, inrShort, timeAgo } from '../lib/utils';
+import { useTick } from '../lib/hooks';
 import { toast } from 'sonner';
 
 const ease = [0.22, 1, 0.36, 1] as const;
@@ -18,9 +19,12 @@ function Box({ children, className, delay = 0 }: { children: ReactNode; classNam
       className={cn('rounded-2xl bg-panel p-5 ring-1 ring-black/[0.04] dark:ring-white/[0.06]', className)}>{children}</motion.section>
   );
 }
+// When the dashboard figures were last read. With the server this becomes the last sync time.
+const LOADED = Date.now();
+const Updated = () => <span className="text-2xs text-faint">Updated {timeAgo(LOADED)}</span>;
 const BoxHead = ({ title, sub, right }: { title: string; sub?: string; right?: ReactNode }) => (
   <div className="mb-4 flex items-start justify-between gap-3">
-    <div><h2 className="text-[15px] font-bold tracking-tight">{title}</h2>{sub && <p className="mt-0.5 text-xs text-muted">{sub}</p>}</div>{right}
+    <div><h2 className="text-[15px] font-bold tracking-tight">{title}</h2><p className="mt-0.5 text-xs text-muted">{sub}{sub && ' · '}<Updated /></p></div>{right}
   </div>
 );
 const ViewLink = ({ to, children, onClick }: { to: Route; children: ReactNode; onClick?: () => void }) => (
@@ -53,12 +57,21 @@ export function Overview() {
   const openExams = (status: string, kind = 'all') => { setExamPreset({ status, kind }); navigate({ page: 'exams' }); };
   const upcoming = [...scheduled, ...live].sort((a, b) => +new Date(a.e.opensAt) - +new Date(b.e.opensAt)).slice(0, 4);
   const empty = !s.students.length && !s.exams.length && !s.batches.length;
+  useTick();
+  const pendingReview = completed.reduce((a, x) => a + Math.max(0, x.e.flagged - x.e.reviewed), 0);
+  const feesDue = s.students.filter((x) => x.fee === 'due').length;
+  const attention = [
+    { n: live.length, label: live.length === 1 ? 'exam live now' : 'exams live now', icon: Radio, go: () => openExams('live'), hot: true },
+    { n: pendingReview, label: 'scripts waiting for faculty review', icon: ScanLine, go: () => openExams('closed') },
+    { n: s.joinRequests.length, label: s.joinRequests.length === 1 ? 'join request' : 'join requests', icon: Inbox, go: () => navigate({ page: 'join-requests' }) },
+    { n: feesDue, label: 'students with fees due', icon: Wallet, go: () => { useUI.getState().setStudentPreset({ batch: 'all', fee: 'due' }); navigate({ page: 'students' }); } },
+  ].filter((a) => a.n > 0);
 
   return (
     <Page crumbs={[{ label: 'Dashboard' }]}>
       <div className="mb-7 flex flex-wrap items-end justify-between gap-4">
         <div>
-          <p className="text-sm text-muted">{greeting}{s.me.name ? `, ${s.me.name.split(' ')[0]}` : ''} · {now.toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'long' })}</p>
+          <p className="text-sm text-muted">{greeting}{s.me.name ? `, ${s.me.name.split(' ')[0]}` : ''} · {now.toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'short', year: 'numeric' })}</p>
           <h1 className="mt-1 text-[30px] font-bold leading-tight tracking-[-0.03em]">Dashboard</h1>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -67,21 +80,35 @@ export function Overview() {
         </div>
       </div>
 
+      {!empty && (
+        <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4, ease }}
+          className="mb-4 flex flex-wrap items-center gap-2 rounded-[22px] bg-fg p-2 text-bg">
+          <span className="px-3 text-xs font-bold">Needs attention</span>
+          {attention.length ? attention.map((a) => (
+            <button key={a.label} onClick={a.go} className="group flex h-9 items-center gap-2 rounded-full bg-bg/10 pl-2 pr-3 text-xs transition hover:bg-bg/20">
+              <span className={cn('grid size-6 place-items-center rounded-full', a.hot ? 'bg-pop text-pop-fg' : 'bg-bg/15')}><a.icon className="size-3.5" /></span>
+              <span className="tnum font-bold">{a.n.toLocaleString('en-IN')}</span><span className="opacity-75">{a.label}</span>
+              <ArrowRight className="size-3.5 opacity-50 transition-transform group-hover:translate-x-0.5 group-hover:opacity-100" />
+            </button>
+          )) : <span className="flex items-center gap-2 text-xs opacity-75"><CircleCheck className="size-4" /> All clear. Nothing waiting on you today.</span>}
+        </motion.div>
+      )}
+
       {empty ? (
         <Box><EmptyState icon={GraduationCap} title="Your academy is empty" action={<><Button onClick={() => useUI.getState().open('batch')}>New batch</Button><Button variant="primary" onClick={() => s.loadSample()}>Load sample data</Button></>}>Create a batch and add students to get started, or load the sample academy to see the dashboard filled in.</EmptyState></Box>
       ) : (
-        <div className="grid gap-4 lg:grid-cols-12">
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-12">
           {/* 1. Student & batch overview */}
           <div className="grid gap-4 sm:grid-cols-2 lg:col-span-4 lg:grid-cols-1">
             <Box className="flex flex-col">
-              <div className="flex items-start justify-between"><div className="text-xs font-medium text-muted">Total students</div><IconDot icon={Users} /></div>
+              <div className="flex items-start justify-between"><div><div className="text-xs font-medium text-muted">Total students</div><Updated /></div><IconDot icon={Users} /></div>
               <div className="mt-1 flex items-center gap-3"><span className="tnum text-[34px] font-bold tracking-tight"><AnimatedNumber value={s.students.length} /></span>{s.students.length > 0 && <Delta value={growth} />}</div>
               <div className="text-2xs text-muted">{last30} joined in the last 30 days</div>
               <Sparkline values={regsByMonth} className="my-3 h-12" />
               <ViewLink to={{ page: 'students' }}>View all students</ViewLink>
             </Box>
             <Box className="flex flex-col" delay={0.05}>
-              <div className="flex items-start justify-between"><div className="text-xs font-medium text-muted">Total batches</div><IconDot icon={Layers} /></div>
+              <div className="flex items-start justify-between"><div><div className="text-xs font-medium text-muted">Total batches</div><Updated /></div><IconDot icon={Layers} /></div>
               <div className="mt-1 flex items-center gap-3"><span className="tnum text-[34px] font-bold tracking-tight"><AnimatedNumber value={s.batches.length} /></span><Badge tone="ink">{activeBatches.length} active</Badge></div>
               <div className="my-4 flex h-3 gap-1 overflow-hidden rounded-full">
                 {(['CA Foundation', 'CA Inter', 'CA Final'] as const).map((c, i) => { const n = activeBatches.filter((b) => b.course === c).length; return n ? <motion.div key={c} title={`${c}: ${n}`} initial={{ flexGrow: 0 }} animate={{ flexGrow: n }} transition={{ duration: 0.8, ease }} className={cn('h-full rounded-full', i === 0 ? 'bg-pop' : i === 1 ? 'bg-fg' : 'hatch')} /> : null; })}
@@ -94,12 +121,12 @@ export function Overview() {
           {/* 4. Revenue */}
           <Box className="lg:col-span-5" delay={0.1}>
             <BoxHead title="Total revenue" sub="Last 6 months" right={<Badge tone="pop">Sample</Badge>} />
-            <div className="flex flex-wrap items-center gap-3"><span className="tnum text-[34px] font-bold tracking-tight">{inr(totalRevenue)}</span><Delta value={monthly.length > 1 && monthly[monthly.length - 2] ? Math.round(((monthly[monthly.length - 1] - monthly[monthly.length - 2]) / monthly[monthly.length - 2]) * 100) : 0} /></div>
-            <div className="mt-8"><HatchedBars data={monthly.map((v, i) => ({ label: months[i], value: v }))} height={170} format={(v) => inr(v)} highlight={monthly.length - 1} /></div>
+            <div className="flex flex-wrap items-center gap-3"><span className="tnum text-[34px] font-bold tracking-tight" title={inr(totalRevenue)}>{inrShort(totalRevenue)}</span><Delta value={monthly.length > 1 && monthly[monthly.length - 2] ? Math.round(((monthly[monthly.length - 1] - monthly[monthly.length - 2]) / monthly[monthly.length - 2]) * 100) : 0} /></div>
+            <div className="mt-8"><HatchedBars data={monthly.map((v, i) => ({ label: months[i], value: v }))} height={170} format={(v) => inrShort(v)} highlight={monthly.length - 1} /></div>
             <div className="mt-5 grid grid-cols-3 gap-2">
               {[['E-books', s.revenue.ebooks], ['Tests', s.revenue.tests], ['Question banks', s.revenue.questionBanks]].map(([l, v]) => (
                 <button key={l as string} onClick={() => toast('Revenue reports arrive with the Reports phase')} className="group rounded-xl bg-subtle p-3 text-left transition hover:bg-hover">
-                  <div className="text-2xs text-muted">{l}</div><div className="tnum mt-0.5 text-sm font-bold">{inr(v as number)}</div>
+                  <div className="text-2xs text-muted">{l}</div><div className="tnum mt-0.5 text-sm font-bold" title={inr(v as number)}>{inrShort(v as number)}</div>
                   <div className="mt-1 flex items-center gap-1 text-2xs font-semibold text-muted group-hover:text-fg">Report <ArrowRight className="size-3" /></div>
                 </button>
               ))}
@@ -190,11 +217,6 @@ export function Overview() {
                 <ViewLink to={{ page: 'reports' }}>View all</ViewLink>
               </div>
             </div>
-          </Box>
-
-          <Box className="lg:col-span-12" delay={0.35}>
-            <BoxHead title="Batch strength" sub="Students in each active batch" right={<a href={href({ page: 'batches' })} className={btn('secondary', 'sm')}>Manage batches</a>} />
-            <HatchedBars height={150} data={activeBatches.map((b) => ({ label: b.name.replace('CA ', '').replace(/ · /g, ' '), value: s.students.filter((x) => x.batchId === b.id).length, ghost: 100 }))} />
           </Box>
         </div>
       )}

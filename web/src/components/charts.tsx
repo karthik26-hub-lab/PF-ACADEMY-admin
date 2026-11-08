@@ -38,6 +38,7 @@ export function Donut({ segments, size = 180, thickness = 26, center, sub }: {
   segments: { label: string; value: number; tone: 'ink' | 'pop' | 'hatch' | 'grey' }[]; size?: number; thickness?: number; center: React.ReactNode; sub?: React.ReactNode;
 }) {
   const id = useId().replace(/:/g, '');
+  const [hover, setHover] = useState<number | null>(null);
   const total = Math.max(1, segments.reduce((a, s) => a + s.value, 0));
   const r = (size - thickness) / 2, c = 2 * Math.PI * r, gap = segments.length > 1 ? 4 : 0;
   let offset = 0;
@@ -55,13 +56,18 @@ export function Donut({ segments, size = 180, thickness = 26, center, sub }: {
           const len = Math.max(0, (s.value / total) * c - gap);
           const el = (
             <motion.circle key={s.label} cx={size / 2} cy={size / 2} r={r} fill="none" stroke={color(s.tone)} strokeWidth={thickness} strokeLinecap="round"
-              strokeDasharray={`${len} ${c}`} initial={{ strokeDashoffset: c }} animate={{ strokeDashoffset: -offset }} transition={{ duration: 0.9, delay: i * 0.08, ease }} />
+              strokeDasharray={`${len} ${c}`} onMouseEnter={() => setHover(i)} onMouseLeave={() => setHover(null)}
+              className="cursor-default transition-[stroke-width] duration-200" style={{ strokeWidth: hover === i ? thickness + 4 : thickness }} initial={{ strokeDashoffset: c }} animate={{ strokeDashoffset: -offset }} transition={{ duration: 0.9, delay: i * 0.08, ease }} />
           );
           offset += (s.value / total) * c;
           return el;
         })}
       </svg>
-      <div className="absolute text-center"><div className="tnum text-2xl font-bold tracking-tight">{center}</div>{sub && <div className="text-2xs text-muted">{sub}</div>}</div>
+      <div className="pointer-events-none absolute text-center">
+        {hover !== null && segments[hover]
+          ? <><div className="tnum text-2xl font-bold tracking-tight">{segments[hover].value.toLocaleString('en-IN')}</div><div className="text-2xs text-muted">{segments[hover].label} · {Math.round((segments[hover].value / total) * 100)}%</div></>
+          : <><div className="tnum text-2xl font-bold tracking-tight">{center}</div>{sub && <div className="text-2xs text-muted">{sub}</div>}</>}
+      </div>
     </div>
   );
 }

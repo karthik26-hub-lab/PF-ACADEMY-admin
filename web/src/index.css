@@ -4,6 +4,8 @@
 
 /* Soft grey canvas, big white rounded cards, ink-black primary, lime highlight for good news. */
 @layer base {
+  /* Single-column grids may shrink below their content, so long names truncate instead of widening the page. Any grid-cols-* utility overrides this. */
+  .grid { grid-template-columns: minmax(0, 1fr); }
   :root {
     --bg: 0 0% 94.5%;
     --panel: 0 0% 100%;
@@ -62,6 +64,7 @@
   * { scrollbar-width: none; -ms-overflow-style: none; }
   *::-webkit-scrollbar { display: none; width: 0; height: 0; }
   body {
+    font-variant-numeric: tabular-nums;
     @apply bg-bg text-fg font-sans text-sm antialiased;
   }
   * { @apply border-border; }

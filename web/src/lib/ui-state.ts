@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 
-export type DialogName = 'batch' | 'student' | 'invite' | 'import' | 'command' | 'event' | null;
+export type DialogName = 'batch' | 'student' | 'invite' | 'import' | 'command' | 'event' | 'shortcuts' | null;
 export type Theme = 'light' | 'dark' | 'system';
 
 const read = (k: string) => { try { return localStorage.getItem(k); } catch { return null; } };

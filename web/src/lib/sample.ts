@@ -22,26 +22,32 @@ export function makeSample(): Data {
     ['K. Das', 'Exam manager', ['Auditing & Ethics']], ['M. Krishnan', 'Faculty', ['Cost & Management Accounting']], ['A. Venkatesh', 'Reviewer', ['Financial Management']],
     ['L. Raghavan', 'Faculty', ['Indirect Tax Laws']], ['V. Chandran', 'Faculty', ['Accounting']], ['N. Subramanian', 'Reviewer', ['Taxation']],
     ['J. Kapoor', 'Faculty', ['Business Economics']], ['T. Bose', 'Faculty', ['Quantitative Aptitude']], ['H. Patil', 'Faculty', ['Business Laws']],
+    ['G. Rao', 'Faculty', ['Financial Reporting']], ['D. Kulkarni', 'Reviewer', ['Auditing & Ethics']], ['C. Nair', 'Faculty', ['Strategic Cost Management']],
+    ['B. Joshi', 'Faculty', ['Direct Tax Laws']], ['E. Desai', 'Exam manager', ['Accounting']], ['U. Kamath', 'Reviewer', ['Corporate & Other Laws']],
+    ['I. Sethi', 'Faculty', ['Financial Management']], ['O. Reddy', 'Faculty', ['Indirect Tax Laws']],
   ].map(([name, role, subjects], i) => ({
     id: `f${i}`, name: name as string, email: `${(name as string).toLowerCase().replace(/[^a-z]/g, '')}@northstar.example`, phone: `+91 98${String(40000000 + i * 7919).slice(0, 8)}`,
     role: role as Member['role'], subjects: subjects as string[], batchIds: [], invitedAt: now - (60 - i) * 86400e3,
   }));
 
-  const batchDefs: [string, Course, number, string][] = [
-    ['CA Foundation · Jan 2027 · A', 'CA Foundation', 68, 'Mon, Wed, Fri · 9:00–12:00'], ['CA Foundation · Jan 2027 · B', 'CA Foundation', 54, 'Tue, Thu, Sat · 14:00–17:00'],
-    ['CA Foundation · May 2027', 'CA Foundation', 41, 'Weekends · 9:00–13:00'], ['CA Inter · Jan 2027 · A', 'CA Inter', 92, 'Mon–Fri · 7:00–9:00'],
-    ['CA Inter · Jan 2027 · B', 'CA Inter', 78, 'Mon–Fri · 18:00–20:00'], ['CA Inter · May 2027 · A', 'CA Inter', 85, 'Mon, Wed, Fri · 10:00–13:00'],
-    ['CA Inter · May 2027 · B', 'CA Inter', 63, 'Tue, Thu, Sat · 10:00–13:00'], ['CA Inter · Sep 2027', 'CA Inter', 37, 'Weekends · 14:00–18:00'],
-    ['CA Final · Nov 2026', 'CA Final', 46, 'Mon–Sat · 7:00–9:00'], ['CA Final · May 2027', 'CA Final', 58, 'Mon–Fri · 19:00–21:00'],
-    ['CA Inter · Nov 2026', 'CA Inter', 34, 'Completed'], ['CA Foundation · Sep 2026', 'CA Foundation', 29, 'Completed'],
+  // About 2,500 students across 31 batches, the size the client's academies run at.
+  const SCHED = ['Mon, Wed, Fri · 9:00–12:00', 'Tue, Thu, Sat · 14:00–17:00', 'Weekends · 9:00–13:00', 'Mon–Fri · 7:00–9:00', 'Mon–Fri · 18:00–20:00', 'Mon, Wed, Fri · 10:00–13:00', 'Tue, Thu, Sat · 10:00–13:00', 'Mon–Sat · 7:00–9:00', 'Mon–Fri · 19:00–21:00'];
+  const intakes: [Course, string, string[]][] = [
+    ['CA Foundation', 'Jan 2027', ['A', 'B', 'C', 'D']], ['CA Foundation', 'May 2027', ['A', 'B', 'C']], ['CA Foundation', 'Sep 2027', ['A', 'B']],
+    ['CA Inter', 'Jan 2027', ['A', 'B', 'C', 'D']], ['CA Inter', 'May 2027', ['A', 'B', 'C', 'D']], ['CA Inter', 'Sep 2027', ['A', 'B']], ['CA Inter', 'Nov 2026', ['A', 'B']],
+    ['CA Final', 'Nov 2026', ['A', 'B', 'C']], ['CA Final', 'May 2027', ['A', 'B', 'C']], ['CA Final', 'Nov 2027', ['A']],
   ];
+  const batchDefs: [string, Course, number, string][] = [];
+  intakes.forEach(([c, m, secs]) => secs.forEach((sec) => batchDefs.push([`${c} · ${m} · ${sec}`, c, 62 + Math.floor(r() * 46), SCHED[batchDefs.length % SCHED.length]])));
+  batchDefs.push(['CA Inter · May 2026', 'CA Inter', 71, 'Completed'], ['CA Foundation · Sep 2026 · A', 'CA Foundation', 64, 'Completed'], ['CA Foundation · Sep 2026 · B', 'CA Foundation', 58, 'Completed']);
+  const ACTIVE = batchDefs.length - 3;
   const batches: Batch[] = batchDefs.map(([name, course, , schedule], i) => {
     const fIds = [faculty[i % faculty.length].id, faculty[(i + 3) % faculty.length].id];
     fIds.forEach((fid) => faculty.find((f) => f.id === fid)!.batchIds.push(`b${i}`));
     return {
-      id: `b${i}`, name, course, facultyId: fIds[0], facultyIds: fIds, createdAt: now - (200 - i * 9) * 86400e3,
-      status: i >= 10 ? 'archived' : 'active', startDate: iso(day(-180 + i * 12)), schedule,
-      announcements: i < 4 ? [{ id: `a${i}`, text: i % 2 ? 'Mock test on Saturday. Bring your calculator.' : 'Revision class moved to 10 am this week.', at: now - (i + 1) * 3600e3 * 7 }] : [],
+      id: `b${i}`, name, course, facultyId: fIds[0], facultyIds: fIds, createdAt: now - (240 - i * 6) * 86400e3,
+      status: i >= ACTIVE ? 'archived' : 'active', startDate: iso(day(-220 + i * 6)), schedule,
+      announcements: i < 6 ? [{ id: `a${i}`, text: i % 2 ? 'Mock test on Saturday. Bring your calculator.' : 'Revision class moved to 10 am this week.', at: now - (i + 1) * 3600e3 * 7 }] : [],
     };
   });
 
@@ -70,7 +76,7 @@ export function makeSample(): Data {
   const subjects = ['Accounting', 'Taxation', 'Auditing & Ethics', 'Corporate & Other Laws', 'Cost & Management Accounting', 'Financial Management', 'Indirect Tax Laws'];
   const exams: Exam[] = [];
   const mk = (i: number, title: string, opens: Date, hours: number, kind: ExamKind, draft = false): Exam => {
-    const bIds = [`b${i % 10}`];
+    const bIds = [`b${(i * 7) % ACTIVE}`];
     const enrolled = students.filter((s) => s.batchId === bIds[0]).length;
     const past = opens.getTime() + hours * 3600e3 < now;
     const live = !past && opens.getTime() < now;
@@ -84,19 +90,22 @@ export function makeSample(): Data {
     };
   };
   const names = ['PGBP Unit Test', 'Capital Gains Test', 'AS 10 Quiz', 'GST Mock', 'Audit Standards Test', 'Company Law MCQs', 'Costing Revision', 'FM Ratio Test', 'Ind AS Drill', 'Partnership Accounts'];
-  for (let i = 0; i < 22; i++) exams.push(mk(i, `${names[i % names.length]} ${Math.floor(i / names.length) + 1}`, day(-3 - i * 3, 10), 3, i % 3 === 0 ? 'descriptive' : i % 3 === 1 ? 'mcq' : 'mixed'));
-  exams.push(mk(22, 'Taxation Weekly Test', day(0, new Date().getHours() - 1), 3, 'descriptive'));
-  exams.push(mk(23, 'Accounts MCQ Sprint', day(0, new Date().getHours() - 1), 2, 'mcq'));
-  [['Accounts Mock', 2], ['Taxation Full Test', 4], ['Audit Chapter Test', 7], ['Law Case Study', 9], ['Costing MCQs', 11], ['FM Descriptive', 14]].forEach(([t, d], k) =>
-    exams.push(mk(24 + k, t as string, day(d as number, 10), 3, k % 2 ? 'mcq' : 'descriptive')));
-  exams.push(mk(30, 'Indirect Tax Practice', day(5, 10), 2, 'mixed', true));
+  for (let i = 0; i < 44; i++) exams.push(mk(i, `${names[i % names.length]} ${Math.floor(i / names.length) + 1}`, day(-2 - Math.floor(i * 1.6), 10), 3, i % 3 === 0 ? 'descriptive' : i % 3 === 1 ? 'mcq' : 'mixed'));
+  const hr = new Date().getHours();
+  exams.push(mk(44, 'Taxation Weekly Test', day(0, hr - 1), 3, 'descriptive'));
+  exams.push(mk(45, 'Accounts MCQ Sprint', day(0, hr - 1), 2, 'mcq'));
+  exams.push(mk(46, 'Audit Case Drill', day(0, hr), 3, 'mixed'));
+  [['Accounts Mock', 1], ['Taxation Full Test', 2], ['Audit Chapter Test', 3], ['Law Case Study', 4], ['Costing MCQs', 6], ['FM Descriptive', 7], ['GST Full Mock', 9], ['Ind AS Revision Test', 11], ['Company Law Drill', 13], ['SFM Mock', 15]].forEach(([t, d], k) =>
+    exams.push(mk(47 + k, t as string, day(d as number, 10), 3, k % 2 ? 'mcq' : 'descriptive')));
+  exams.push(mk(57, 'Indirect Tax Practice', day(5, 10), 2, 'mixed', true));
+  exams.push(mk(58, 'Final Revision Mock', day(20, 10), 3, 'descriptive', true));
 
   const events: CalendarEvent[] = [];
   exams.filter((e) => !e.draft && +new Date(e.opensAt) > now - 86400e3).forEach((e) => events.push({ id: `ev-${e.id}`, date: e.opensAt.slice(0, 10), time: e.opensAt.slice(11), title: e.title, type: 'exam', batchId: e.batchIds[0] }));
   for (let d = -3; d < 35; d++) {
     const dt = day(d);
     if (dt.getDay() === 0) continue;
-    if (d % 2 === 0) events.push({ id: `c${d}`, date: iso(dt), time: '07:00', title: `${subjects[(d + 7) % subjects.length]} class`, type: 'class', batchId: `b${(d + 20) % 10}` });
+    if (d % 2 === 0) events.push({ id: `c${d}`, date: iso(dt), time: '07:00', title: `${subjects[(d + 7) % subjects.length]} class`, type: 'class', batchId: `b${(d + 20) % ACTIVE}` });
   }
   events.push({ id: 'h1', date: iso(day(6)), title: 'Academy holiday', type: 'holiday' });
   events.push({ id: 'd1', date: iso(day(3)), title: 'Fee due date · Nov instalment', type: 'deadline' });
@@ -104,7 +113,7 @@ export function makeSample(): Data {
   events.push({ id: 'x1', date: iso(day(17)), time: '16:00', title: 'Toppers’ talk', type: 'event' });
 
   const codes: JoinCode[] = [
-    { id: 'jc1', code: 'NSA-72KMP', batchId: 'b5', limit: 100, used: 85, createdAt: now - 40 * 86400e3, active: true },
+    { id: 'jc1', code: 'NSA-72KMP', batchId: 'b5', limit: 120, used: 97, createdAt: now - 40 * 86400e3, active: true },
     { id: 'jc2', code: 'NSA-39RTV', batchId: 'b2', limit: 60, used: 41, createdAt: now - 12 * 86400e3, active: true },
   ];
 
@@ -117,14 +126,18 @@ export function makeSample(): Data {
       { id: 'j1', name: 'Harsh Agarwal', phone: '+91 98••• 4410', roll: '', at: now - 12 * 60e3 },
       { id: 'j2', name: 'Lavanya S', phone: '+91 97••• 1182', roll: '', at: now - 3600e3 },
       { id: 'j3', name: 'Farhan Qureshi', phone: '+91 90••• 7759', roll: '', at: now - 26 * 3600e3 },
+      { id: 'j4', name: 'Keerthana V', phone: '+91 99••• 2051', roll: '', at: now - 30 * 3600e3 },
+      { id: 'j5', name: 'Rakesh Pillai', phone: '+91 96••• 6630', roll: '', at: now - 40 * 3600e3 },
+      { id: 'j6', name: 'Janani M', phone: '+91 95••• 0917', roll: '', at: now - 52 * 3600e3 },
+      { id: 'j7', name: 'Pranav Iyer', phone: '+91 93••• 4472', roll: '', at: now - 70 * 3600e3 },
     ],
     exams, events, codes,
     courses: [
-      { id: 'c1', name: 'CA Inter', active: true, subjects: 12, materials: 145 },
-      { id: 'c2', name: 'CA Foundation', active: true, subjects: 4, materials: 105 },
-      { id: 'c3', name: 'CA Final', active: true, subjects: 8, materials: 92 },
+      { id: 'c1', name: 'CA Inter', active: true, subjects: 12, materials: 412 },
+      { id: 'c2', name: 'CA Foundation', active: true, subjects: 4, materials: 268 },
+      { id: 'c3', name: 'CA Final', active: true, subjects: 8, materials: 305 },
     ],
-    revenue: { ebooks: 720000, tests: 125000, questionBanks: 105000, monthly: [42, 48, 51, 46, 58, 63, 61, 72, 69, 78, 84, 91].map((v) => v * 1000) },
+    revenue: { ebooks: 2340000, tests: 410000, questionBanks: 345000, monthly: [142, 158, 171, 166, 188, 203, 214, 236, 229, 258, 284, 311].map((v) => v * 1000) },
     feed: {
       uploads: [
         { title: 'AS 10 – Property, Plant & Equipment', kind: 'PDF', at: now - 2 * 3600e3 },

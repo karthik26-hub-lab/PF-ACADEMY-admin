@@ -1,6 +1,6 @@
 import { Command } from 'cmdk';
 import * as DialogPrimitive from '@radix-ui/react-dialog';
-import { BarChart3, ClipboardCheck, FileText, Layers, LayoutGrid, Moon, Plus, Settings, Sun, Upload, UserPlus, Users } from 'lucide-react';
+import { BarChart3, ClipboardCheck, FileText, Keyboard, Layers, LayoutGrid, Moon, Plus, Settings, Sun, Upload, UserPlus, Users } from 'lucide-react';
 import { useEffect, type ElementType } from 'react';
 import { navigate, type Route } from '../../lib/router';
 import { useStore } from '../../lib/store';
@@ -74,6 +74,7 @@ export function CommandMenu() {
               </Command.Group>}
               <Command.Group heading="Preferences" className="[&_[cmdk-group-heading]]:px-2.5 [&_[cmdk-group-heading]]:pb-1 [&_[cmdk-group-heading]]:pt-2 [&_[cmdk-group-heading]]:text-2xs [&_[cmdk-group-heading]]:font-medium [&_[cmdk-group-heading]]:text-faint">
                 {item('theme toggle dark light', dark ? Sun : Moon, dark ? 'Switch to light theme' : 'Switch to dark theme', () => { setTheme(dark ? 'light' : 'dark'); close(); }, theme === 'system' ? 'Following system' : undefined)}
+                {item('keyboard shortcuts help', Keyboard, 'Keyboard shortcuts', () => open('shortcuts'), '?')}
               </Command.Group>
             </Command.List>
             <div className="flex items-center gap-3 border-t border-border bg-subtle/60 px-3 py-2 text-2xs text-faint">

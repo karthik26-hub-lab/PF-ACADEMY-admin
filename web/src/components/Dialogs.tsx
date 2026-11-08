@@ -7,7 +7,7 @@ import { toast } from 'sonner';
 import { COURSES, SUBJECTS, useStore, type Course, type EventType, type Role, type Student } from '../lib/store';
 import { useUI } from '../lib/ui-state';
 import { cn } from '../lib/utils';
-import { Badge, Button, Dialog, Field, Input, Progress, Segmented, Select } from './ui';
+import { Badge, Button, Dialog, Field, Input, Progress, Segmented, Select, Skeleton } from './ui';
 
 export function Dialogs() {
   return (<><BatchDialog /><AddStudentsDialog /><InviteDialog /><EventDialog /></>);
@@ -213,7 +213,7 @@ function QrJoin({ batchId }: { batchId: string }) {
   return (
     <div className="grid items-center gap-6 sm:grid-cols-[auto_minmax(0,1fr)]">
       <div className="relative mx-auto rounded-3xl bg-white p-4 shadow-pop">
-        <motion.div key={token} initial={{ opacity: 0, scale: 0.96 }} animate={{ opacity: 1, scale: 1 }} transition={{ duration: 0.3 }} className="size-48 [&_svg]:size-full" dangerouslySetInnerHTML={{ __html: svg }} />
+        {svg ? <motion.div key={token} initial={{ opacity: 0, scale: 0.96 }} animate={{ opacity: 1, scale: 1 }} transition={{ duration: 0.3 }} className="size-48 [&_svg]:size-full" dangerouslySetInnerHTML={{ __html: svg }} /> : <Skeleton className="size-48" />}
       </div>
       <div className="space-y-4">
         <div className="flex items-center gap-3">

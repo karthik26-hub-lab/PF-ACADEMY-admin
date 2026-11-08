@@ -6,6 +6,7 @@ import * as TooltipPrimitive from '@radix-ui/react-tooltip';
 import { Check, ChevronDown, X } from 'lucide-react';
 import { animate, motion, useInView, useMotionValue, useTransform } from 'framer-motion';
 import { cn, initials } from '../lib/utils';
+import { useFirstVisit } from '../lib/first-visit';
 import type { ExamStatus } from '../lib/store';
 
 // ---------- Button ----------
@@ -92,10 +93,10 @@ export const spring = { type: 'spring', stiffness: 520, damping: 40, mass: 0.8 }
 export function Segmented<T extends string>({ value, onChange, options, className }: { value: T; onChange: (v: T) => void; options: { value: T; label: React.ReactNode; count?: number }[]; className?: string }) {
   const id = React.useId();
   return (
-    <div role="tablist" className={cn('inline-flex h-10 items-center gap-0.5 rounded-full bg-subtle p-1 ring-1 ring-inset ring-border', className)}>
+    <div role="tablist" className={cn('inline-flex h-10 max-w-full items-center gap-0.5 overflow-x-auto rounded-full bg-subtle p-1 ring-1 ring-inset ring-border [scrollbar-width:none]', className)}>
       {options.map((o) => (
         <button key={o.value} role="tab" aria-selected={value === o.value} onClick={() => onChange(o.value)}
-          className={cn('relative inline-flex h-8 items-center gap-1.5 rounded-full px-3.5 text-xs font-semibold transition-colors duration-200', value === o.value ? 'text-bg' : 'text-muted hover:text-fg')}>
+          className={cn('relative inline-flex h-8 shrink-0 items-center gap-1.5 rounded-full px-3.5 text-xs font-semibold transition-colors duration-200', value === o.value ? 'text-bg' : 'text-muted hover:text-fg')}>
           {value === o.value && <motion.span layoutId={`seg-${id}`} transition={spring} className="absolute inset-0 rounded-full bg-fg" />}
           <span className="relative z-10 inline-flex items-center gap-1.5">{o.label}{o.count !== undefined && <span className="tnum text-faint">{o.count}</span>}</span>
         </button>
@@ -123,7 +124,8 @@ export function Tabs<T extends string>({ value, onChange, tabs }: { value: T; on
 export function AnimatedNumber({ value }: { value: number }) {
   const ref = React.useRef<HTMLSpanElement>(null);
   const inView = useInView(ref, { once: true });
-  const mv = useMotionValue(0);
+  const first = useFirstVisit();
+  const mv = useMotionValue(first ? 0 : value);
   const text = useTransform(mv, (v) => Math.round(v).toLocaleString('en-IN'));
   React.useEffect(() => {
     if (!inView) return;
@@ -141,6 +143,8 @@ export function Reveal({ children, delay = 0, className }: { children: React.Rea
     </motion.div>
   );
 }
+
+export const Skeleton = ({ className }: { className?: string }) => <span aria-hidden className={cn('block animate-pulse rounded-xl bg-subtle', className)} />;
 
 // ---------- Display ----------
 type Tone = 'neutral' | 'accent' | 'good' | 'warn' | 'bad' | 'pop' | 'ink';

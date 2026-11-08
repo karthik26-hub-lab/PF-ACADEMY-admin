@@ -2,7 +2,7 @@ import { motion } from 'framer-motion';
 import { ArrowRight, Eye, EyeOff } from 'lucide-react';
 import { useState, type FormEvent } from 'react';
 import { useStore } from '../lib/store';
-import { cn } from '../lib/utils';
+import { cn, initials } from '../lib/utils';
 import { Button, Field, Input } from '../components/ui';
 
 const ease = [0.22, 1, 0.36, 1] as const;
@@ -63,6 +63,7 @@ function DoodleStep({ s, i, inline }: { s: (typeof STEPS)[number]; i: number; in
 
 export function Login() {
   const signIn = useStore((s) => s.signIn);
+  const academy = useStore((s) => s.academy);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [show, setShow] = useState(false);
@@ -76,9 +77,10 @@ export function Login() {
       <div className="relative z-20 flex min-h-screen flex-col items-center justify-center px-4 py-10">
         <motion.div initial={{ opacity: 0, y: 16, scale: 0.98 }} animate={{ opacity: 1, y: 0, scale: 1 }} transition={{ duration: 0.6, ease }}
           className="w-full max-w-[440px] rounded-[36px] bg-panel p-8 shadow-[0_30px_80px_-30px_rgba(0,0,0,0.35)] ring-1 ring-black/[0.04] sm:p-10 dark:ring-white/[0.06]">
+          {/* Each academy signs in on its own address, so the card carries the academy's brand. */}
           <div className="flex items-center gap-2.5">
-            <span className="grid size-10 place-items-center rounded-full bg-fg text-xs font-bold text-bg">PF</span>
-            <span className="text-sm font-bold tracking-tight">Parallax Flow</span>
+            <span className="grid size-10 place-items-center rounded-full bg-fg text-xs font-bold text-bg">{academy.name ? initials(academy.name) : 'PF'}</span>
+            <span className="leading-tight"><span className="block text-sm font-bold tracking-tight">{academy.name || 'Parallax Flow'}</span>{academy.name && <span className="block text-2xs text-muted">{academy.city ? `${academy.city} · ` : ''}Admin console</span>}</span>
           </div>
 
           <div className="relative mt-7">
@@ -102,6 +104,7 @@ export function Login() {
           <p className="mt-3 rounded-2xl bg-subtle px-3 py-2 text-center text-2xs text-muted">Preview: sign-in isn’t connected yet, so any details open the console.</p>
         </motion.div>
 
+        <p className="mt-6 text-2xs text-muted">Powered by <span className="font-semibold text-fg">Parallax Flow</span></p>
         <div className="mt-8 grid w-full max-w-[440px] gap-3 sm:grid-cols-2 xl:hidden">
           {STEPS.map((s, i) => <DoodleStep key={s.n} s={s} i={i} inline />)}
         </div>

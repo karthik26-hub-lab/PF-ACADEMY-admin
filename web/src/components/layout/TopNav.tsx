@@ -98,7 +98,8 @@ export function TopNav({ route }: { route: Route }) {
                 <DropdownLabel>Settings</DropdownLabel>
                 {SETTINGS_TABS.map(([k, l, Icon]) => <DropdownItem key={k} onSelect={() => (location.hash = href({ page: 'settings', tab: k }))}><Icon /> {l}</DropdownItem>)}
                 <DropdownSeparator />
-                <DropdownItem onSelect={() => open('command')}><KeyRound /> Command menu <span className="ml-auto text-2xs text-faint">Ctrl K</span></DropdownItem>
+                <DropdownItem onSelect={() => open('command')}><Search /> Command menu <span className="ml-auto text-2xs text-faint">Ctrl K</span></DropdownItem>
+                <DropdownItem onSelect={() => open('shortcuts')}><KeyRound /> Keyboard shortcuts <span className="ml-auto text-2xs text-faint">?</span></DropdownItem>
                 <DropdownItem onSelect={signOut}><LogOut /> Sign out</DropdownItem>
               </DropdownContent>
             </DropdownMenu>

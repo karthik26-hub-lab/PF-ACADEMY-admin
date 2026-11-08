@@ -67,6 +67,8 @@ interface State extends Data {
   addStudent: (s: NewStudent) => { student: Student; password: string } | { error: string };
   addStudents: (rows: NewStudent[]) => { added: number; skipped: number };
   updateStudent: (id: string, s: Partial<Student>) => void;
+  updateStudents: (ids: string[], s: Partial<Student>) => void;
+  removeStudents: (ids: string[]) => void;
   deleteStudent: (id: string) => void;
   invite: (m: Omit<Member, 'id' | 'invitedAt'>) => void;
   updateMember: (id: string, m: Partial<Member>) => void;
@@ -160,6 +162,8 @@ export const useStore = create<State>()(
           return { added, skipped };
         },
         updateStudent: (id, st) => set((s) => ({ students: s.students.map((x) => (x.id === id ? { ...x, ...st } : x)) })),
+        updateStudents: (ids, st) => { const pick = new Set(ids); set((s) => ({ students: s.students.map((x) => (pick.has(x.id) ? { ...x, ...st } : x)) })); },
+        removeStudents: (ids) => { const pick = new Set(ids); set((s) => ({ students: s.students.filter((x) => !pick.has(x.id)) })); log('student', `${ids.length} students removed`); },
         deleteStudent: (id) => set((s) => ({ students: s.students.filter((x) => x.id !== id) })),
         invite: (m) => { set((s) => ({ members: [...s.members, { ...m, id: uid(), invitedAt: Date.now() }] })); log('team', `${m.name} added as ${m.role}`); },
         updateMember: (id, m) => set((s) => ({ members: s.members.map((x) => (x.id === id ? { ...x, ...m } : x)) })),
@@ -188,7 +192,7 @@ export const useStore = create<State>()(
       };
     },
     {
-      name: 'pf-academy-v2',
+      name: 'pf-academy-v3',
       storage: createJSONStorage(() => {
         try { localStorage.setItem('__t', '1'); localStorage.removeItem('__t'); return localStorage; }
         catch { const m = new Map<string, string>(); return { getItem: (k) => m.get(k) ?? null, setItem: (k, v) => void m.set(k, v), removeItem: (k) => void m.delete(k) }; }
