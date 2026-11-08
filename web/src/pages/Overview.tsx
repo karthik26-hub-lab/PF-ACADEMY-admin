@@ -1,163 +1,203 @@
-import { ArrowUpRight, Building2, CalendarClock, Check, ClipboardCheck, FileText, Layers, Plus, Settings2, UserPlus, Users } from 'lucide-react';
-import type { ElementType } from 'react';
+import { motion } from 'framer-motion';
+import { ArrowRight, BookOpen, Download, FileText, GraduationCap, Layers, Plus, Upload, Users } from 'lucide-react';
+import type { ReactNode } from 'react';
+import { Delta, Donut, HatchedBars, Sparkline } from '../components/charts';
 import { Page } from '../components/layout/Page';
-import { AnimatedNumber, Badge, Button, Card, CardHeader, EmptyState, PageHeader, Progress, Reveal, StatusPill, btn } from '../components/ui';
-import { href, navigate } from '../lib/router';
-import { examStatus, useStore, type Activity } from '../lib/store';
+import { AnimatedNumber, Avatar, Badge, Button, EmptyState, btn } from '../components/ui';
+import { href, navigate, type Route } from '../lib/router';
+import { examStatus, inr, useStore } from '../lib/store';
 import { useUI } from '../lib/ui-state';
-import { cn, fmtDateTime, relativeTo, sameDay, timeAgo } from '../lib/utils';
+import { cn, fmtDate, timeAgo } from '../lib/utils';
+import { toast } from 'sonner';
 
-const ACT_ICON: Record<Activity['kind'], ElementType> = { exam: FileText, student: UserPlus, batch: Layers, team: Users, settings: Settings2 };
+const ease = [0.22, 1, 0.36, 1] as const;
+
+function Box({ children, className, delay = 0 }: { children: ReactNode; className?: string; delay?: number }) {
+  return (
+    <motion.section initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.45, delay, ease }}
+      className={cn('rounded-2xl bg-panel p-5 ring-1 ring-black/[0.04] dark:ring-white/[0.06]', className)}>{children}</motion.section>
+  );
+}
+const BoxHead = ({ title, sub, right }: { title: string; sub?: string; right?: ReactNode }) => (
+  <div className="mb-4 flex items-start justify-between gap-3">
+    <div><h2 className="text-[15px] font-bold tracking-tight">{title}</h2>{sub && <p className="mt-0.5 text-xs text-muted">{sub}</p>}</div>{right}
+  </div>
+);
+const ViewLink = ({ to, children, onClick }: { to: Route; children: ReactNode; onClick?: () => void }) => (
+  <a href={href(to)} onClick={onClick} className="group mt-auto flex items-center justify-between border-t border-border pt-3 text-xs font-semibold">
+    {children}<ArrowRight className="size-4 transition-transform duration-200 group-hover:translate-x-1" />
+  </a>
+);
+const IconDot = ({ icon: Icon }: { icon: typeof Users }) => <span className="grid size-10 place-items-center rounded-full bg-subtle ring-1 ring-border"><Icon className="size-[18px]" /></span>;
 
 export function Overview() {
   const s = useStore();
-  const open = useUI((u) => u.open);
+  const setExamPreset = useUI((u) => u.setExamPreset);
   const now = new Date();
-  const withStatus = s.exams.map((e) => ({ e, st: examStatus(e) }));
-  const live = withStatus.filter((x) => x.st === 'live');
-  const upcoming = withStatus.filter((x) => x.st === 'scheduled').sort((a, b) => +new Date(a.e.opensAt || a.e.practiceFrom) - +new Date(b.e.opensAt || b.e.practiceFrom));
-  const inProgress = [...live, ...upcoming].slice(0, 6);
-  const batchName = (id: string) => s.batches.find((b) => b.id === id)?.name ?? '—';
-  const enrolled = (ids: string[]) => s.students.filter((x) => ids.includes(x.batchId)).length;
-
-  const today = s.exams.flatMap((e) => {
-    if (e.draft || e.mode !== 'timed') return [];
-    const out: { t: Date; label: string; e: typeof e }[] = [];
-    const o = new Date(e.opensAt), c = new Date(e.closesAt);
-    if (sameDay(o, now)) out.push({ t: o, label: 'Opens', e });
-    if (sameDay(c, now)) out.push({ t: c, label: 'Closes', e });
-    return out;
-  }).sort((a, b) => +a.t - +b.t);
-
-  const setup = [
-    { done: !!s.academy.name, title: 'Academy details', desc: 'Name, contact and the code students join with', icon: Building2, action: () => navigate({ page: 'settings', tab: 'general' }), cta: 'Add details' },
-    { done: s.batches.length > 0, title: 'Create a batch', desc: 'Group students by course and attempt', icon: Layers, action: () => open('batch'), cta: 'New batch' },
-    { done: s.students.length > 0, title: 'Add students', desc: 'Create logins or import from Excel', icon: UserPlus, action: () => open('student'), cta: 'Add student' },
-    { done: s.exams.length > 0, title: 'Create an exam', desc: 'Upload the paper, set timing and results', icon: FileText, action: () => navigate({ page: 'exam-new' }), cta: 'Create exam' },
-  ];
-  const doneCount = setup.filter((x) => x.done).length;
+  const statuses = s.exams.map((e) => ({ e, st: examStatus(e) }));
+  const scheduled = statuses.filter((x) => x.st === 'scheduled');
+  const live = statuses.filter((x) => x.st === 'live');
+  const completed = statuses.filter((x) => x.st === 'closed');
+  const mcq = s.exams.filter((e) => e.kind === 'mcq').length;
+  const desc = s.exams.filter((e) => e.kind === 'descriptive').length;
+  const activeBatches = s.batches.filter((b) => b.status === 'active');
+  const totalRevenue = s.revenue.ebooks + s.revenue.tests + s.revenue.questionBanks;
+  const months = Array.from({ length: 6 }, (_, i) => { const d = new Date(); d.setMonth(d.getMonth() - 5 + i); return d.toLocaleDateString('en-IN', { month: 'short' }); });
+  const monthly = s.revenue.monthly.slice(-6);
+  const regsByMonth = Array.from({ length: 8 }, (_, i) => { const from = new Date(); from.setMonth(from.getMonth() - 7 + i, 1); const to = new Date(from); to.setMonth(to.getMonth() + 1); return s.students.filter((x) => x.createdAt >= +from && x.createdAt < +to).length; });
+  const DAY = 86400e3, t = Date.now();
+  const last30 = s.students.filter((x) => x.createdAt > t - 30 * DAY).length, prev30 = s.students.filter((x) => x.createdAt > t - 60 * DAY && x.createdAt <= t - 30 * DAY).length;
+  const growth = prev30 ? Math.round(((last30 - prev30) / prev30) * 100) : 0;
   const h = now.getHours();
   const greeting = h < 12 ? 'Good morning' : h < 17 ? 'Good afternoon' : 'Good evening';
-  const first = s.me.name.split(' ')[0];
-
-  const metrics = [
-    { label: 'Live exams', value: live.length, sub: upcoming.length ? `${upcoming.length} scheduled` : 'None scheduled' },
-    { label: 'Uploads received', value: live.reduce((a, x) => a + x.e.received, 0), sub: live.length ? 'Across live exams' : 'No exam open' },
-    { label: 'Waiting for review', value: s.exams.reduce((a, e) => a + Math.max(0, e.flagged - e.reviewed), 0), sub: 'Flagged or held scripts' },
-    { label: 'Students', value: s.students.length, sub: `${s.batches.length} batch${s.batches.length === 1 ? '' : 'es'}` },
-  ];
+  const openExams = (status: string, kind = 'all') => { setExamPreset({ status, kind }); navigate({ page: 'exams' }); };
+  const upcoming = [...scheduled, ...live].sort((a, b) => +new Date(a.e.opensAt) - +new Date(b.e.opensAt)).slice(0, 4);
+  const empty = !s.students.length && !s.exams.length && !s.batches.length;
 
   return (
-    <Page crumbs={[{ label: 'Overview' }]} actions={<a href={href({ page: 'exam-new' })} className={btn('primary', 'sm')}><Plus /> Create exam</a>}>
-      <PageHeader title={`${greeting}${first ? `, ${first}` : ''}`} desc={now.toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })} />
+    <Page crumbs={[{ label: 'Dashboard' }]}>
+      <div className="mb-7 flex flex-wrap items-end justify-between gap-4">
+        <div>
+          <p className="text-sm text-muted">{greeting}{s.me.name ? `, ${s.me.name.split(' ')[0]}` : ''} · {now.toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'long' })}</p>
+          <h1 className="mt-1 text-[30px] font-bold leading-tight tracking-[-0.03em]">Dashboard</h1>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <Button onClick={() => toast('Reports export arrives with the Reports phase')}><Download /> Export report</Button>
+          <a href={href({ page: 'exam-new' })} className={btn('primary')}><Plus /> Create test</a>
+        </div>
+      </div>
 
-      {doneCount < setup.length && (
-        <Reveal><Card className="mb-5">
-          <CardHeader title="Set up your academy" desc={`${doneCount} of ${setup.length} done`} action={<Progress value={(doneCount / setup.length) * 100} className="w-28" />} />
-          <ol className="grid gap-px overflow-hidden rounded-b-lg bg-border sm:grid-cols-2 lg:grid-cols-4">
-            {setup.map((st, i) => (
-              <li key={st.title} className="flex flex-col gap-3 bg-panel p-4">
-                <div className="flex items-center gap-2">
-                  <span className={cn('grid size-6 place-items-center rounded-full text-2xs font-semibold ring-1 ring-inset transition-colors duration-300', st.done ? 'bg-good text-white ring-good' : 'bg-subtle text-muted ring-border')}>{st.done ? <Check className="size-3.5" strokeWidth={3} /> : i + 1}</span>
-                  <span className={cn('text-sm font-medium', st.done && 'text-muted line-through decoration-faint')}>{st.title}</span>
-                </div>
-                <p className="flex-1 text-xs text-muted">{st.desc}</p>
-                {!st.done && <Button size="sm" className="self-start" onClick={st.action}>{st.cta}</Button>}
-              </li>
-            ))}
-          </ol>
-        </Card></Reveal>
-      )}
-
-      <Reveal delay={0.05}><Card className="mb-5 grid grid-cols-2 gap-px overflow-hidden bg-border lg:grid-cols-4">
-        {metrics.map((m) => (
-          <div key={m.label} className="bg-panel px-4 py-3.5">
-            <div className="text-xs text-muted">{m.label}</div>
-            <div className="tnum mt-1 text-2xl font-semibold tracking-tight"><AnimatedNumber value={m.value} /></div>
-            <div className="text-xs text-faint">{m.sub}</div>
+      {empty ? (
+        <Box><EmptyState icon={GraduationCap} title="Your academy is empty" action={<><Button onClick={() => useUI.getState().open('batch')}>New batch</Button><Button variant="primary" onClick={() => s.loadSample()}>Load sample data</Button></>}>Create a batch and add students to get started, or load the sample academy to see the dashboard filled in.</EmptyState></Box>
+      ) : (
+        <div className="grid gap-4 lg:grid-cols-12">
+          {/* 1. Student & batch overview */}
+          <div className="grid gap-4 sm:grid-cols-2 lg:col-span-4 lg:grid-cols-1">
+            <Box className="flex flex-col">
+              <div className="flex items-start justify-between"><div className="text-xs font-medium text-muted">Total students</div><IconDot icon={Users} /></div>
+              <div className="mt-1 flex items-center gap-3"><span className="tnum text-[34px] font-bold tracking-tight"><AnimatedNumber value={s.students.length} /></span>{s.students.length > 0 && <Delta value={growth} />}</div>
+              <div className="text-2xs text-muted">{last30} joined in the last 30 days</div>
+              <Sparkline values={regsByMonth} className="my-3 h-12" />
+              <ViewLink to={{ page: 'students' }}>View all students</ViewLink>
+            </Box>
+            <Box className="flex flex-col" delay={0.05}>
+              <div className="flex items-start justify-between"><div className="text-xs font-medium text-muted">Total batches</div><IconDot icon={Layers} /></div>
+              <div className="mt-1 flex items-center gap-3"><span className="tnum text-[34px] font-bold tracking-tight"><AnimatedNumber value={s.batches.length} /></span><Badge tone="ink">{activeBatches.length} active</Badge></div>
+              <div className="my-4 flex h-3 gap-1 overflow-hidden rounded-full">
+                {(['CA Foundation', 'CA Inter', 'CA Final'] as const).map((c, i) => { const n = activeBatches.filter((b) => b.course === c).length; return n ? <motion.div key={c} title={`${c}: ${n}`} initial={{ flexGrow: 0 }} animate={{ flexGrow: n }} transition={{ duration: 0.8, ease }} className={cn('h-full rounded-full', i === 0 ? 'bg-pop' : i === 1 ? 'bg-fg' : 'hatch')} /> : null; })}
+              </div>
+              <div className="mb-3 flex flex-wrap gap-x-4 gap-y-1 text-2xs text-muted"><span className="flex items-center gap-1.5"><i className="size-2 rounded-full bg-pop" />Foundation</span><span className="flex items-center gap-1.5"><i className="size-2 rounded-full bg-fg" />Inter</span><span className="flex items-center gap-1.5"><i className="hatch size-2 rounded-full ring-1 ring-border-strong" />Final</span></div>
+              <ViewLink to={{ page: 'batches' }}>View all batches</ViewLink>
+            </Box>
           </div>
-        ))}
-      </Card></Reveal>
 
-      <div className="grid gap-5 lg:grid-cols-3">
-        <Reveal delay={0.1} className="space-y-5 lg:col-span-2">
-          <Card>
-            <CardHeader title="Exams in progress" desc="Live now and coming up" action={<a href={href({ page: 'exams' })} className={btn('ghost', 'sm')}>All exams <ArrowUpRight /></a>} />
-            {inProgress.length ? (
-              <ul className="divide-y divide-border">
-                {inProgress.map(({ e, st }) => {
-                  const n = enrolled(e.batchIds);
+          {/* 4. Revenue */}
+          <Box className="lg:col-span-5" delay={0.1}>
+            <BoxHead title="Total revenue" sub="Last 6 months" right={<Badge tone="pop">Sample</Badge>} />
+            <div className="flex flex-wrap items-center gap-3"><span className="tnum text-[34px] font-bold tracking-tight">{inr(totalRevenue)}</span><Delta value={monthly.length > 1 && monthly[monthly.length - 2] ? Math.round(((monthly[monthly.length - 1] - monthly[monthly.length - 2]) / monthly[monthly.length - 2]) * 100) : 0} /></div>
+            <div className="mt-8"><HatchedBars data={monthly.map((v, i) => ({ label: months[i], value: v }))} height={170} format={(v) => inr(v)} highlight={monthly.length - 1} /></div>
+            <div className="mt-5 grid grid-cols-3 gap-2">
+              {[['E-books', s.revenue.ebooks], ['Tests', s.revenue.tests], ['Question banks', s.revenue.questionBanks]].map(([l, v]) => (
+                <button key={l as string} onClick={() => toast('Revenue reports arrive with the Reports phase')} className="group rounded-xl bg-subtle p-3 text-left transition hover:bg-hover">
+                  <div className="text-2xs text-muted">{l}</div><div className="tnum mt-0.5 text-sm font-bold">{inr(v as number)}</div>
+                  <div className="mt-1 flex items-center gap-1 text-2xs font-semibold text-muted group-hover:text-fg">Report <ArrowRight className="size-3" /></div>
+                </button>
+              ))}
+            </div>
+          </Box>
+
+          {/* 3. Tests & examinations */}
+          <Box className="flex flex-col lg:col-span-3" delay={0.15}>
+            <BoxHead title="Examinations" sub="By status" />
+            <div className="flex justify-center"><Donut size={168} thickness={22} center={<AnimatedNumber value={s.exams.length} />} sub="tests" segments={[{ label: 'Ongoing', value: live.length, tone: 'pop' }, { label: 'Scheduled', value: scheduled.length, tone: 'ink' }, { label: 'Completed', value: completed.length, tone: 'hatch' }]} /></div>
+            <div className="mt-5 space-y-1">
+              {([['Scheduled', scheduled.length, 'ink', 'scheduled'], ['Ongoing', live.length, 'pop', 'live'], ['Completed', completed.length, 'hatch', 'closed']] as const).map(([l, v, tone, key]) => (
+                <button key={l} onClick={() => openExams(key)} className="flex w-full items-center gap-2.5 rounded-xl px-2 py-1.5 text-left text-xs transition hover:bg-subtle">
+                  <span className={cn('size-2.5 rounded-full', tone === 'ink' ? 'bg-fg' : tone === 'pop' ? 'bg-pop' : 'hatch ring-1 ring-border-strong')} />
+                  <span className="flex-1 text-muted">{l}</span><span className="tnum font-bold">{v}</span><ArrowRight className="size-3.5 text-faint" />
+                </button>
+              ))}
+            </div>
+            <div className="mt-auto grid grid-cols-2 gap-2 pt-4">
+              <button onClick={() => openExams('all', 'mcq')} className="rounded-xl bg-fg p-3 text-left text-bg transition hover:bg-fg/90"><div className="text-2xs opacity-70">MCQ tests</div><div className="tnum text-xl font-bold">{mcq}</div></button>
+              <button onClick={() => openExams('all', 'descriptive')} className="rounded-xl bg-pop p-3 text-left text-pop-fg transition hover:brightness-95"><div className="text-2xs opacity-70">Descriptive</div><div className="tnum text-xl font-bold">{desc}</div></button>
+            </div>
+          </Box>
+
+          {/* 2. Courses & learning materials */}
+          <Box className="lg:col-span-7" delay={0.2}>
+            <BoxHead title="Courses & learning materials" sub="What students can study" right={<a href={href({ page: 'learning' })} className={btn('secondary', 'sm')}>Open learning</a>} />
+            {s.courses.length ? (
+              <div className="grid gap-3 sm:grid-cols-3">
+                {s.courses.map((c, i) => {
+                  const max = Math.max(...s.courses.map((x) => x.materials));
                   return (
-                    <li key={e.id}>
-                      <a href={href({ page: 'exam', id: e.id })} className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-6 gap-y-1 px-4 py-3 transition hover:bg-hover sm:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)_120px]">
-                        <div className="min-w-0"><div className="truncate font-medium">{e.title}</div><div className="truncate text-xs text-muted">{e.batchIds.map(batchName).join(', ') || 'No batch'}</div></div>
-                        <div className="flex items-center gap-2 text-xs text-muted"><StatusPill status={st} /><span className="hidden sm:inline">· {st === 'live' ? (e.mode === 'timed' ? `closes ${relativeTo(e.closesAt)}` : 'open practice') : `opens ${relativeTo(e.mode === 'timed' ? e.opensAt : e.practiceFrom)}`}</span></div>
-                        <div className="col-span-2 sm:col-span-1">
-                          <div className="tnum mb-1 flex justify-between text-2xs text-muted"><span>Uploads</span><span>{e.received}/{n}</span></div>
-                          <Progress value={n ? (e.received / n) * 100 : 0} />
-                        </div>
-                      </a>
-                    </li>
+                    <a key={c.id} href={href({ page: 'learning' })} className="group flex flex-col rounded-2xl bg-subtle p-4 transition hover:bg-hover">
+                      <div className="flex items-center justify-between"><span className="grid size-9 place-items-center rounded-full bg-panel"><BookOpen className="size-4" /></span>{c.active && <Badge tone="pop">Active</Badge>}</div>
+                      <div className="mt-4 text-sm font-bold">{c.name}</div>
+                      <div className="text-2xs text-muted">{c.subjects} subjects · {c.materials} materials</div>
+                      <div className="mt-3 h-2 overflow-hidden rounded-full hatch"><motion.div className={cn('h-full rounded-full', i === 1 ? 'bg-pop' : 'bg-fg')} initial={{ width: 0 }} animate={{ width: `${(c.materials / max) * 100}%` }} transition={{ duration: 0.8, delay: 0.3 + i * 0.1, ease }} /></div>
+                      <div className="mt-3 flex items-center gap-1 text-2xs font-semibold text-muted group-hover:text-fg">View in detail <ArrowRight className="size-3 transition-transform group-hover:translate-x-0.5" /></div>
+                    </a>
+                  );
+                })}
+              </div>
+            ) : <EmptyState compact icon={BookOpen} title="No courses yet" />}
+          </Box>
+
+          {/* Upcoming exams */}
+          <Box className="flex flex-col lg:col-span-5" delay={0.25}>
+            <BoxHead title="Upcoming exams" sub="Live now and next" right={<button onClick={() => openExams('scheduled')} className={btn('secondary', 'sm')}>View all</button>} />
+            {upcoming.length ? (
+              <ul className="space-y-1">
+                {upcoming.map(({ e, st }) => {
+                  const d = new Date(e.opensAt);
+                  return (
+                    <li key={e.id}><a href={href({ page: 'exam', id: e.id })} className="flex items-center gap-3 rounded-xl p-2 transition hover:bg-subtle">
+                      <span className={cn('grid w-12 shrink-0 place-items-center rounded-xl py-1.5 text-center leading-none', st === 'live' ? 'bg-pop text-pop-fg' : 'bg-fg text-bg')}><span className="text-[9px] font-semibold uppercase opacity-75">{d.toLocaleDateString('en-IN', { month: 'short' })}</span><span className="tnum text-lg font-bold">{d.getDate()}</span></span>
+                      <span className="min-w-0 flex-1"><span className="block truncate text-sm font-semibold">{e.title}</span><span className="block truncate text-2xs text-muted">{e.subject} · {s.batches.find((b) => b.id === e.batchIds[0])?.name}</span></span>
+                      {st === 'live' ? <Badge tone="pop">Live</Badge> : <span className="text-2xs text-muted">{d.toLocaleTimeString('en-IN', { hour: 'numeric', minute: '2-digit' })}</span>}
+                    </a></li>
                   );
                 })}
               </ul>
-            ) : (
-              <EmptyState compact icon={FileText} title="Nothing running" action={<a href={href({ page: 'exam-new' })} className={btn('secondary', 'sm')}><Plus /> Create exam</a>}>Live and scheduled exams show here with their upload progress.</EmptyState>
-            )}
-          </Card>
+            ) : <EmptyState compact icon={FileText} title="Nothing scheduled" />}
+          </Box>
 
-          <Card>
-            <CardHeader title="Review queue" desc="Scripts the AI flagged, or that an exam holds for faculty" action={<a href={href({ page: 'reviews' })} className={btn('ghost', 'sm')}>Open reviews <ArrowUpRight /></a>} />
-            <EmptyState compact icon={ClipboardCheck} title="No scripts waiting">When students upload, the AI marks each script. Anything it isn’t sure about lands here.</EmptyState>
-          </Card>
-        </Reveal>
+          {/* 5. Recent activities */}
+          <Box className="lg:col-span-12" delay={0.3}>
+            <BoxHead title="Recent activities" sub="Across your academy" />
+            <div className="grid gap-4 md:grid-cols-3">
+              <div className="flex flex-col rounded-2xl bg-subtle p-4">
+                <div className="mb-3 flex items-center gap-2 text-xs font-bold"><Users className="size-4" /> New registrations</div>
+                <ul className="space-y-2.5">{s.students.slice(0, 4).map((x) => (
+                  <li key={x.id}><a href={href({ page: 'student', id: x.id })} className="flex items-center gap-2.5 text-xs"><Avatar name={x.name} size="sm" className="size-7" /><span className="min-w-0 flex-1"><span className="block truncate font-semibold">{x.name}</span><span className="block truncate text-2xs text-muted">{s.batches.find((b) => b.id === x.batchId)?.course}</span></span><span className="text-2xs text-faint">{fmtDate(x.createdAt).replace(/ \d{4}$/, '')}</span></a></li>
+                ))}</ul>
+                <ViewLink to={{ page: 'students' }}>View all</ViewLink>
+              </div>
+              <div className="flex flex-col rounded-2xl bg-subtle p-4">
+                <div className="mb-3 flex items-center gap-2 text-xs font-bold"><Upload className="size-4" /> Recently uploaded</div>
+                <ul className="space-y-2.5">{s.feed.uploads.slice(0, 4).map((u) => (
+                  <li key={u.title} className="flex items-center gap-2.5 text-xs"><span className="grid h-7 w-10 shrink-0 place-items-center rounded-lg bg-panel text-[9px] font-bold">{u.kind}</span><span className="min-w-0 flex-1 truncate font-semibold">{u.title}</span><span className="shrink-0 text-2xs text-faint">{timeAgo(u.at)}</span></li>
+                ))}</ul>
+                <ViewLink to={{ page: 'learning' }}>View all</ViewLink>
+              </div>
+              <div className="flex flex-col rounded-2xl bg-subtle p-4">
+                <div className="mb-3 flex items-center gap-2 text-xs font-bold"><GraduationCap className="size-4" /> Student activities</div>
+                <ul className="space-y-2.5">{s.feed.studentActs.slice(0, 4).map((a, i) => (
+                  <li key={i} className="flex items-center gap-2.5 text-xs"><span className={cn('size-2 shrink-0 rounded-full', i === 0 ? 'bg-pop' : 'bg-border-strong')} /><span className="min-w-0 flex-1 truncate">{s.students[i * 7]?.name ?? 'A student'} {a.text}</span><span className="shrink-0 text-2xs text-faint">{timeAgo(a.at)}</span></li>
+                ))}</ul>
+                <ViewLink to={{ page: 'reports' }}>View all</ViewLink>
+              </div>
+            </div>
+          </Box>
 
-        <Reveal delay={0.15} className="space-y-5">
-          <Card>
-            <CardHeader title="Today" desc={now.toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short' })} />
-            {today.length ? (
-              <ul className="space-y-0 p-2">
-                {today.map((t, i) => (
-                  <li key={i}><a href={href({ page: 'exam', id: t.e.id })} className="flex items-center gap-3 rounded-md px-2 py-2 transition hover:bg-hover">
-                    <span className="tnum w-16 shrink-0 text-xs font-medium">{t.t.toLocaleTimeString('en-IN', { hour: 'numeric', minute: '2-digit' })}</span>
-                    <span className="min-w-0 flex-1 truncate text-sm">{t.e.title}</span>
-                    <Badge tone={t.label === 'Opens' ? 'accent' : 'neutral'}>{t.label}</Badge>
-                  </a></li>
-                ))}
-              </ul>
-            ) : <EmptyState compact icon={CalendarClock} title="Nothing scheduled today" />}
-          </Card>
-
-          <Card>
-            <CardHeader title="Batches" action={<Button variant="ghost" size="sm" onClick={() => open('batch')}><Plus /> New</Button>} />
-            {s.batches.length ? (
-              <ul className="divide-y divide-border">
-                {s.batches.slice(0, 6).map((b) => (
-                  <li key={b.id} className="flex items-center gap-3 px-4 py-2.5">
-                    <span className="min-w-0 flex-1"><span className="block truncate text-sm font-medium">{b.name}</span><span className="text-xs text-muted">{b.course}</span></span>
-                    <span className="tnum text-xs text-muted">{s.students.filter((x) => x.batchId === b.id).length} students</span>
-                  </li>
-                ))}
-              </ul>
-            ) : <EmptyState compact icon={Layers} title="No batches yet" />}
-          </Card>
-
-          <Card>
-            <CardHeader title="Recent activity" />
-            {s.activity.length ? (
-              <ul className="space-y-0.5 p-2">
-                {s.activity.slice(0, 8).map((a) => { const Icon = ACT_ICON[a.kind]; return (
-                  <li key={a.id} className="flex items-start gap-2.5 rounded-md px-2 py-1.5">
-                    <Icon className="mt-0.5 size-3.5 shrink-0 text-faint" />
-                    <span className="min-w-0 flex-1 text-sm">{a.text}</span>
-                    <span className="shrink-0 text-2xs text-faint" title={fmtDateTime(a.at)}>{timeAgo(a.at)}</span>
-                  </li>
-                ); })}
-              </ul>
-            ) : <EmptyState compact icon={Users} title="No activity yet">Uploads, reviews and changes by your team appear here.</EmptyState>}
-          </Card>
-        </Reveal>
-      </div>
+          <Box className="lg:col-span-12" delay={0.35}>
+            <BoxHead title="Batch strength" sub="Students in each active batch" right={<a href={href({ page: 'batches' })} className={btn('secondary', 'sm')}>Manage batches</a>} />
+            <HatchedBars height={150} data={activeBatches.map((b) => ({ label: b.name.replace('CA ', '').replace(/ · /g, ' '), value: s.students.filter((x) => x.batchId === b.id).length, ghost: 100 }))} />
+          </Box>
+        </div>
+      )}
     </Page>
   );
 }

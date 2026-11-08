@@ -2,7 +2,7 @@ import { Command } from 'cmdk';
 import * as DialogPrimitive from '@radix-ui/react-dialog';
 import { BarChart3, ClipboardCheck, FileText, Layers, LayoutGrid, Moon, Plus, Settings, Sun, Upload, UserPlus, Users } from 'lucide-react';
 import { useEffect, type ElementType } from 'react';
-import { href, navigate, type Route } from '../../lib/router';
+import { navigate, type Route } from '../../lib/router';
 import { useStore } from '../../lib/store';
 import { useUI } from '../../lib/ui-state';
 import { Avatar, Kbd } from '../ui';
@@ -47,19 +47,22 @@ export function CommandMenu() {
                 {item('invite faculty team', Users, 'Invite to team', () => open('invite'))}
               </Command.Group>
               <Command.Group heading="Go to" className="[&_[cmdk-group-heading]]:px-2.5 [&_[cmdk-group-heading]]:pb-1 [&_[cmdk-group-heading]]:pt-2 [&_[cmdk-group-heading]]:text-2xs [&_[cmdk-group-heading]]:font-medium [&_[cmdk-group-heading]]:text-faint">
-                {item('overview home', LayoutGrid, 'Overview', () => go({ page: 'overview' }))}
-                {item('reviews', ClipboardCheck, 'Reviews', () => go({ page: 'reviews' }))}
-                {item('exams', FileText, 'Exams', () => go({ page: 'exams' }))}
-                {item('students', Users, 'Students', () => go({ page: 'students' }))}
+                {item('dashboard home overview', LayoutGrid, 'Dashboard', () => go({ page: 'overview' }))}
+                {item('academics', Layers, 'Academics', () => go({ page: 'academics' }))}
                 {item('batches', Layers, 'Batches', () => go({ page: 'batches' }))}
+                {item('students directory', Users, 'Students', () => go({ page: 'students' }))}
+                {item('faculty teachers', Users, 'Faculty', () => go({ page: 'faculty' }))}
+                {item('academic calendar schedule', FileText, 'Academic calendar', () => go({ page: 'calendar' }))}
+                {item('learning courses materials', FileText, 'Learning', () => go({ page: 'learning' }))}
+                {item('assessments tests exams', ClipboardCheck, 'Assessments', () => go({ page: 'assessments' }))}
                 {item('reports', BarChart3, 'Reports', () => go({ page: 'reports' }))}
-                {item('settings', Settings, 'Settings', () => go({ page: 'settings', tab: 'general' }))}
+                {item('settings profile', Settings, 'Settings', () => go({ page: 'settings', tab: 'general' }))}
               </Command.Group>
               {exams.length > 0 && <Command.Group heading="Exams" className="[&_[cmdk-group-heading]]:px-2.5 [&_[cmdk-group-heading]]:pb-1 [&_[cmdk-group-heading]]:pt-2 [&_[cmdk-group-heading]]:text-2xs [&_[cmdk-group-heading]]:font-medium [&_[cmdk-group-heading]]:text-faint">
                 {exams.map((e) => item(`exam ${e.title} ${e.id}`, FileText, e.title, () => go({ page: 'exam', id: e.id }), e.subject))}
               </Command.Group>}
               {students.length > 0 && <Command.Group heading="Students" className="[&_[cmdk-group-heading]]:px-2.5 [&_[cmdk-group-heading]]:pb-1 [&_[cmdk-group-heading]]:pt-2 [&_[cmdk-group-heading]]:text-2xs [&_[cmdk-group-heading]]:font-medium [&_[cmdk-group-heading]]:text-faint">
-                {students.map((s) => (
+                {students.slice(0, 300).map((s) => (
                   <Command.Item key={s.id} value={`student ${s.name} ${s.roll} ${s.id}`} onSelect={() => go({ page: 'student', id: s.id })}
                     className="flex h-9 cursor-default items-center gap-2.5 rounded-md px-2.5 text-sm aria-selected:bg-hover">
                     <Avatar name={s.name} size="sm" />{s.name}<span className="ml-auto font-mono text-xs text-faint">{s.roll}</span>
@@ -67,7 +70,7 @@ export function CommandMenu() {
                 ))}
               </Command.Group>}
               {batches.length > 0 && <Command.Group heading="Batches" className="[&_[cmdk-group-heading]]:px-2.5 [&_[cmdk-group-heading]]:pb-1 [&_[cmdk-group-heading]]:pt-2 [&_[cmdk-group-heading]]:text-2xs [&_[cmdk-group-heading]]:font-medium [&_[cmdk-group-heading]]:text-faint">
-                {batches.map((b) => item(`batch ${b.name} ${b.id}`, Layers, b.name, () => { close(); location.hash = href({ page: 'batches' }); }, b.course))}
+                {batches.map((b) => item(`batch ${b.name} ${b.id}`, Layers, b.name, () => go({ page: 'batch', id: b.id }), b.course))}
               </Command.Group>}
               <Command.Group heading="Preferences" className="[&_[cmdk-group-heading]]:px-2.5 [&_[cmdk-group-heading]]:pb-1 [&_[cmdk-group-heading]]:pt-2 [&_[cmdk-group-heading]]:text-2xs [&_[cmdk-group-heading]]:font-medium [&_[cmdk-group-heading]]:text-faint">
                 {item('theme toggle dark light', dark ? Sun : Moon, dark ? 'Switch to light theme' : 'Switch to dark theme', () => { setTheme(dark ? 'light' : 'dark'); close(); }, theme === 'system' ? 'Following system' : undefined)}

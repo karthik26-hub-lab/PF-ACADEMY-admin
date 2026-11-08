@@ -5,7 +5,8 @@ export default {
   theme: {
     extend: {
       fontFamily: {
-        sans: ['Inter', 'ui-sans-serif', 'system-ui', '-apple-system', 'Segoe UI', 'sans-serif'],
+        sans: ['"Plus Jakarta Sans"', 'ui-sans-serif', 'system-ui', '-apple-system', 'Segoe UI', 'sans-serif'],
+        hand: ['Caveat', '"Segoe Print"', 'cursive'],
         mono: ['"JetBrains Mono"', 'ui-monospace', 'Consolas', 'monospace'],
       },
       fontSize: { '2xs': ['11px', '16px'], xs: ['12px', '16px'], sm: ['13px', '20px'], base: ['14px', '22px'] },
@@ -21,10 +22,12 @@ export default {
         faint: 'hsl(var(--faint))',
         accent: { DEFAULT: 'hsl(var(--accent))', fg: 'hsl(var(--accent-fg))', soft: 'hsl(var(--accent-soft))' },
         good: { DEFAULT: 'hsl(var(--good))', soft: 'hsl(var(--good-soft))' },
+        pop: { DEFAULT: 'hsl(var(--pop))', fg: 'hsl(var(--pop-fg))' },
+        coral: { DEFAULT: 'hsl(var(--coral))', fg: 'hsl(var(--coral-fg))' },
         warn: { DEFAULT: 'hsl(var(--warn))', soft: 'hsl(var(--warn-soft))' },
         bad: { DEFAULT: 'hsl(var(--bad))', soft: 'hsl(var(--bad-soft))' },
       },
-      borderRadius: { sm: '4px', DEFAULT: '6px', md: '8px', lg: '10px', xl: '12px' },
+      borderRadius: { sm: '6px', DEFAULT: '8px', md: '10px', lg: '14px', xl: '18px', '2xl': '22px', '3xl': '28px' },
       boxShadow: {
         xs: '0 1px 2px 0 hsl(var(--shadow) / 0.05)',
         pop: '0 0 0 1px hsl(var(--border)), 0 8px 24px -6px hsl(var(--shadow) / 0.16), 0 2px 6px -2px hsl(var(--shadow) / 0.08)',

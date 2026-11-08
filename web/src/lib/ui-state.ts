@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 
-export type DialogName = 'batch' | 'student' | 'invite' | 'import' | 'command' | null;
+export type DialogName = 'batch' | 'student' | 'invite' | 'import' | 'command' | 'event' | null;
 export type Theme = 'light' | 'dark' | 'system';
 
 const read = (k: string) => { try { return localStorage.getItem(k); } catch { return null; } };
@@ -12,6 +12,8 @@ interface UI {
   collapsed: boolean; toggleCollapsed: () => void;
   mobileNav: boolean; setMobileNav: (v: boolean) => void;
   theme: Theme; setTheme: (t: Theme) => void;
+  examPreset: { status: string; kind: string }; setExamPreset: (p: Partial<{ status: string; kind: string }>) => void;
+  studentPreset: { batch: string; fee: string }; setStudentPreset: (p: Partial<{ batch: string; fee: string }>) => void;
 }
 
 export const useUI = create<UI>((set) => ({
@@ -21,12 +23,23 @@ export const useUI = create<UI>((set) => ({
   collapsed: read('pf-collapsed') === '1',
   toggleCollapsed: () => set((s) => { write('pf-collapsed', s.collapsed ? '0' : '1'); return { collapsed: !s.collapsed }; }),
   mobileNav: false, setMobileNav: (mobileNav) => set({ mobileNav }),
+  examPreset: { status: 'all', kind: 'all' }, setExamPreset: (p) => set((s) => ({ examPreset: { ...s.examPreset, ...p } })),
+  studentPreset: { batch: 'all', fee: 'all' }, setStudentPreset: (p) => set((s) => ({ studentPreset: { ...s.studentPreset, ...p } })),
   theme: (read('pf-theme') as Theme) || 'system',
   setTheme: (theme) => {
     const run = () => { write('pf-theme', theme); applyTheme(theme); set({ theme }); };
     // Cross-fade the whole screen when the theme changes, where the browser supports it.
     const d = document as Document & { startViewTransition?: (cb: () => void) => unknown };
-    if (d.startViewTransition && !matchMedia('(prefers-reduced-motion: reduce)').matches) d.startViewTransition(run); else run();
+    let done = false;
+    const once = () => { if (!done) { done = true; run(); } };
+    try {
+      if (d.startViewTransition && !matchMedia('(prefers-reduced-motion: reduce)').matches) {
+        d.startViewTransition(once);
+        setTimeout(once, 250); // safety net if the browser skips the transition callback
+        return;
+      }
+    } catch { /* view transitions not allowed here */ }
+    once();
   },
 }));
 

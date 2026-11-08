@@ -1,5 +1,6 @@
 import { FileText, Plus, Search } from 'lucide-react';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import { useUI } from '../lib/ui-state';
 import { Page } from '../components/layout/Page';
 import { Badge, Card, EmptyState, Input, PageHeader, Segmented, StatusPill, Table, Td, Th, btn } from '../components/ui';
 import { href, navigate } from '../lib/router';
@@ -8,16 +9,19 @@ import { fmtDateTime } from '../lib/utils';
 
 export function Exams() {
   const { exams, batches, students } = useStore();
-  const [filter, setFilter] = useState<'all' | ExamStatus>('all');
+  const preset = useUI.getState().examPreset;
+  const [filter, setFilter] = useState<'all' | ExamStatus>(preset.status as 'all' | ExamStatus);
+  const [kind, setKind] = useState(preset.kind);
+  useEffect(() => { useUI.getState().setExamPreset({ status: 'all', kind: 'all' }); }, []);
   const [q, setQ] = useState('');
   const rows = exams.map((e) => ({ e, st: examStatus(e) }));
-  const shown = rows.filter((r) => (filter === 'all' || r.st === filter) && (!q || r.e.title.toLowerCase().includes(q.toLowerCase())));
+  const shown = rows.filter((r) => (filter === 'all' || r.st === filter) && (kind === 'all' || r.e.kind === kind) && (!q || r.e.title.toLowerCase().includes(q.toLowerCase())));
   const count = (s: ExamStatus) => rows.filter((r) => r.st === s).length;
   const bname = (id: string) => batches.find((b) => b.id === id)?.name ?? '—';
   const create = <a href={href({ page: 'exam-new' })} className={btn('primary', 'sm')}><Plus /> Create exam</a>;
 
   return (
-    <Page crumbs={[{ label: 'Exams' }]} actions={create}>
+    <Page crumbs={[{ label: 'Assessments', href: href({ page: 'assessments' }) }, { label: 'Tests' }]} actions={create}>
       <PageHeader title="Exams" desc="Question papers, who writes them, when, and how results reach students." />
       {exams.length === 0 ? (
         <Card><EmptyState icon={FileText} title="No exams yet" action={create}>Upload the question paper as a Word file, choose the batches and timing, and decide how results are published.</EmptyState></Card>
@@ -29,9 +33,10 @@ export function Exams() {
               { value: 'scheduled', label: 'Scheduled', count: count('scheduled') }, { value: 'draft', label: 'Drafts', count: count('draft') },
               { value: 'closed', label: 'Closed', count: count('closed') },
             ]} />
+            <Segmented value={kind} onChange={setKind} options={[{ value: 'all', label: 'All types' }, { value: 'mcq', label: 'MCQ' }, { value: 'descriptive', label: 'Descriptive' }, { value: 'mixed', label: 'Mixed' }]} />
             <div className="relative ml-auto w-full sm:w-60">
-              <Search className="pointer-events-none absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-faint" />
-              <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Filter by title" className="pl-8" aria-label="Filter exams" />
+              <Search className="pointer-events-none absolute left-3.5 top-1/2 size-4 -translate-y-1/2 text-faint" />
+              <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Filter by title" className="pl-10" aria-label="Filter exams" />
             </div>
           </div>
           <Table>
