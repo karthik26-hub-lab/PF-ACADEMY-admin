@@ -1,5 +1,6 @@
 import { AlertTriangle, Plus, Trash2 } from 'lucide-react';
 import { useEffect, useState, type FormEvent, type ReactNode } from 'react';
+import { motion } from 'framer-motion';
 import { toast } from 'sonner';
 import { Page } from '../components/layout/Page';
 import { Avatar, Badge, Button, Card, CardHeader, Dialog, Field, Input, PageHeader, RadioCard, Select, Switch, Table, Td, Th } from '../components/ui';
@@ -26,10 +27,12 @@ export function Settings({ tab }: { tab: string }) {
         <nav className="flex gap-1 overflow-x-auto md:flex-col [scrollbar-width:none]" aria-label="Settings sections">
           {TABS.map(([k, l]) => (
             <a key={k} href={href({ page: 'settings', tab: k })} aria-current={current === k ? 'page' : undefined}
-              className={cn('whitespace-nowrap rounded-md px-2.5 py-1.5 text-sm font-medium transition', current === k ? 'bg-hover text-fg' : 'text-muted hover:text-fg')}>{l}</a>
+              className={cn('relative whitespace-nowrap rounded-md px-2.5 py-1.5 text-sm font-medium transition-colors duration-150', current === k ? 'text-fg' : 'text-muted hover:text-fg')}>
+              {current === k && <motion.span layoutId="settings-nav" transition={{ type: 'spring', stiffness: 500, damping: 38 }} className="absolute inset-0 rounded-md bg-hover" />}
+              <span className="relative">{l}</span></a>
           ))}
         </nav>
-        <div className="min-w-0 space-y-5">
+        <motion.div key={current} initial={{ opacity: 0, x: 6 }} animate={{ opacity: 1, x: 0 }} transition={{ duration: 0.25, ease: [0.22, 1, 0.36, 1] }} className="min-w-0 space-y-5">
           {current === 'general' && <General />}
           {current === 'team' && <Team />}
           {current === 'access' && <AccessTab />}
@@ -37,7 +40,7 @@ export function Settings({ tab }: { tab: string }) {
           {current === 'marking' && <Marking />}
           {current === 'usage' && <Usage />}
           {current === 'data' && <DataTab />}
-        </div>
+        </motion.div>
       </div>
     </Page>
   );

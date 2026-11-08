@@ -1,7 +1,7 @@
 import { ArrowUpRight, Building2, CalendarClock, Check, ClipboardCheck, FileText, Layers, Plus, Settings2, UserPlus, Users } from 'lucide-react';
 import type { ElementType } from 'react';
 import { Page } from '../components/layout/Page';
-import { Badge, Button, Card, CardHeader, EmptyState, PageHeader, Progress, StatusPill, btn } from '../components/ui';
+import { AnimatedNumber, Badge, Button, Card, CardHeader, EmptyState, PageHeader, Progress, Reveal, StatusPill, btn } from '../components/ui';
 import { href, navigate } from '../lib/router';
 import { examStatus, useStore, type Activity } from '../lib/store';
 import { useUI } from '../lib/ui-state';
@@ -52,13 +52,13 @@ export function Overview() {
       <PageHeader title={`${greeting}${first ? `, ${first}` : ''}`} desc={now.toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })} />
 
       {doneCount < setup.length && (
-        <Card className="mb-5">
+        <Reveal><Card className="mb-5">
           <CardHeader title="Set up your academy" desc={`${doneCount} of ${setup.length} done`} action={<Progress value={(doneCount / setup.length) * 100} className="w-28" />} />
           <ol className="grid gap-px overflow-hidden rounded-b-lg bg-border sm:grid-cols-2 lg:grid-cols-4">
             {setup.map((st, i) => (
               <li key={st.title} className="flex flex-col gap-3 bg-panel p-4">
                 <div className="flex items-center gap-2">
-                  <span className={cn('grid size-6 place-items-center rounded-full text-2xs font-semibold ring-1 ring-inset', st.done ? 'bg-good text-white ring-good' : 'bg-subtle text-muted ring-border')}>{st.done ? <Check className="size-3.5" strokeWidth={3} /> : i + 1}</span>
+                  <span className={cn('grid size-6 place-items-center rounded-full text-2xs font-semibold ring-1 ring-inset transition-colors duration-300', st.done ? 'bg-good text-white ring-good' : 'bg-subtle text-muted ring-border')}>{st.done ? <Check className="size-3.5" strokeWidth={3} /> : i + 1}</span>
                   <span className={cn('text-sm font-medium', st.done && 'text-muted line-through decoration-faint')}>{st.title}</span>
                 </div>
                 <p className="flex-1 text-xs text-muted">{st.desc}</p>
@@ -66,21 +66,21 @@ export function Overview() {
               </li>
             ))}
           </ol>
-        </Card>
+        </Card></Reveal>
       )}
 
-      <Card className="mb-5 grid grid-cols-2 gap-px overflow-hidden bg-border lg:grid-cols-4">
+      <Reveal delay={0.05}><Card className="mb-5 grid grid-cols-2 gap-px overflow-hidden bg-border lg:grid-cols-4">
         {metrics.map((m) => (
           <div key={m.label} className="bg-panel px-4 py-3.5">
             <div className="text-xs text-muted">{m.label}</div>
-            <div className="tnum mt-1 text-2xl font-semibold tracking-tight">{m.value}</div>
+            <div className="tnum mt-1 text-2xl font-semibold tracking-tight"><AnimatedNumber value={m.value} /></div>
             <div className="text-xs text-faint">{m.sub}</div>
           </div>
         ))}
-      </Card>
+      </Card></Reveal>
 
       <div className="grid gap-5 lg:grid-cols-3">
-        <div className="space-y-5 lg:col-span-2">
+        <Reveal delay={0.1} className="space-y-5 lg:col-span-2">
           <Card>
             <CardHeader title="Exams in progress" desc="Live now and coming up" action={<a href={href({ page: 'exams' })} className={btn('ghost', 'sm')}>All exams <ArrowUpRight /></a>} />
             {inProgress.length ? (
@@ -110,9 +110,9 @@ export function Overview() {
             <CardHeader title="Review queue" desc="Scripts the AI flagged, or that an exam holds for faculty" action={<a href={href({ page: 'reviews' })} className={btn('ghost', 'sm')}>Open reviews <ArrowUpRight /></a>} />
             <EmptyState compact icon={ClipboardCheck} title="No scripts waiting">When students upload, the AI marks each script. Anything it isn’t sure about lands here.</EmptyState>
           </Card>
-        </div>
+        </Reveal>
 
-        <div className="space-y-5">
+        <Reveal delay={0.15} className="space-y-5">
           <Card>
             <CardHeader title="Today" desc={now.toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short' })} />
             {today.length ? (
@@ -156,7 +156,7 @@ export function Overview() {
               </ul>
             ) : <EmptyState compact icon={Users} title="No activity yet">Uploads, reviews and changes by your team appear here.</EmptyState>}
           </Card>
-        </div>
+        </Reveal>
       </div>
     </Page>
   );

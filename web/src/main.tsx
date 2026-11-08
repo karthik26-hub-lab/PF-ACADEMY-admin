@@ -1,6 +1,7 @@
 import { StrictMode, useEffect } from 'react';
 import { createRoot } from 'react-dom/client';
 import { Toaster } from 'sonner';
+import { MotionConfig } from 'framer-motion';
 import './index.css';
 import { useRoute } from './lib/router';
 import { useStore } from './lib/store';
@@ -78,4 +79,4 @@ function Root() {
   );
 }
 
-createRoot(document.getElementById('root')!).render(<StrictMode><Root /></StrictMode>);
+createRoot(document.getElementById('root')!).render(<StrictMode><MotionConfig reducedMotion="user"><Root /></MotionConfig></StrictMode>);

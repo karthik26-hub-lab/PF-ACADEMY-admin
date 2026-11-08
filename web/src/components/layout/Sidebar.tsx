@@ -1,5 +1,6 @@
 import { BarChart3, BookOpenCheck, ChevronsUpDown, ClipboardCheck, FileText, Layers, LayoutGrid, LogOut, Monitor, Moon, PanelLeft, Plus, Search, Settings, Sun, Users } from 'lucide-react';
 import type { ElementType } from 'react';
+import { motion } from 'framer-motion';
 import { cn, initials } from '../../lib/utils';
 import { href, type Route } from '../../lib/router';
 import { useStore } from '../../lib/store';
@@ -33,11 +34,12 @@ export function Sidebar({ route }: { route: Route }) {
     const active = it.match.includes(route.page);
     const a = (
       <a key={it.label} href={href(it.route)} onClick={() => setMobileNav(false)} aria-current={active ? 'page' : undefined}
-        className={cn('group flex h-8 items-center gap-2.5 rounded-md px-2 text-sm font-medium transition-colors',
-          active ? 'bg-panel text-fg shadow-xs ring-1 ring-border' : 'text-muted hover:bg-hover hover:text-fg', c && 'justify-center px-0')}>
-        <it.icon className={cn('size-4 shrink-0', active ? 'text-fg' : 'text-faint group-hover:text-muted')} />
-        {!c && <span className="truncate">{it.label}</span>}
-        {!c && it.count ? <span className="tnum ml-auto rounded bg-accent px-1.5 text-2xs font-semibold text-accent-fg">{it.count}</span> : null}
+        className={cn('group relative flex h-8 items-center gap-2.5 rounded-md px-2 text-sm font-medium transition-colors duration-150',
+          active ? 'text-fg' : 'text-muted hover:bg-hover hover:text-fg', c && 'justify-center px-0')}>
+        {active && <motion.span layoutId="nav-active" transition={{ type: 'spring', stiffness: 500, damping: 38 }} className="absolute inset-0 rounded-md bg-panel shadow-xs ring-1 ring-border" />}
+        <it.icon className={cn('relative size-4 shrink-0 transition-colors', active ? 'text-fg' : 'text-faint group-hover:text-muted')} />
+        {!c && <span className="relative truncate">{it.label}</span>}
+        {!c && it.count ? <span className="relative tnum ml-auto rounded bg-accent px-1.5 text-2xs font-semibold text-accent-fg">{it.count}</span> : null}
       </a>
     );
     return c ? <Tip key={it.label} label={it.label}>{a}</Tip> : a;
@@ -45,8 +47,8 @@ export function Sidebar({ route }: { route: Route }) {
 
   return (
     <>
-      {mobileNav && <div className="fixed inset-0 z-30 bg-black/30 md:hidden" onClick={() => setMobileNav(false)} />}
-      <aside className={cn('fixed inset-y-0 left-0 z-40 flex flex-col border-r border-border bg-subtle transition-[width,transform] duration-200 md:sticky md:top-0 md:h-screen md:translate-x-0',
+      <div className={cn('fixed inset-0 z-30 bg-black/30 backdrop-blur-[2px] transition-opacity duration-300 md:hidden', mobileNav ? 'opacity-100' : 'pointer-events-none opacity-0')} onClick={() => setMobileNav(false)} />
+      <aside className={cn('fixed inset-y-0 left-0 z-40 flex flex-col overflow-hidden border-r border-border bg-subtle transition-[width,transform] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] md:sticky md:top-0 md:h-screen md:translate-x-0',
         c ? 'w-[56px]' : 'w-[240px]', mobileNav ? 'translate-x-0 shadow-pop' : '-translate-x-full')}>
         {/* academy switcher */}
         <div className="p-2">

@@ -1,5 +1,6 @@
 import { Check, FileText, Plus, Upload, X } from 'lucide-react';
 import { useState, type ReactNode } from 'react';
+import { AnimatePresence, motion } from 'framer-motion';
 import { toast } from 'sonner';
 import { Page } from '../components/layout/Page';
 import { Badge, Button, Card, Checkbox, Field, Input, PageHeader, RadioCard, Segmented, Select, Switch } from '../components/ui';
@@ -8,17 +9,22 @@ import { LATE, POLICY, SUBJECTS, useStore, type Late, type Mode, type Policy, ty
 import { useUI } from '../lib/ui-state';
 import { cn, fmtDateTime, toLocalInput } from '../lib/utils';
 
+const ease = [0.22, 1, 0.36, 1] as const;
+const Collapse = ({ children }: { children: ReactNode }) => (
+  <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} transition={{ duration: 0.3, ease }} className="overflow-hidden">{children}</motion.div>
+);
+
 function Section({ n, title, desc, children, done }: { n: number; title: string; desc: string; children: ReactNode; done: boolean }) {
   return (
-    <Card>
+    <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4, delay: n * 0.05, ease }}><Card>
       <div className="grid gap-5 p-5 md:grid-cols-[200px_minmax(0,1fr)]">
         <div className="flex gap-3 md:block">
-          <span className={cn('grid size-6 shrink-0 place-items-center rounded-full text-2xs font-semibold ring-1 ring-inset md:mb-2', done ? 'bg-fg text-bg ring-fg' : 'bg-subtle text-muted ring-border')}>{done ? <Check className="size-3.5" strokeWidth={3} /> : n}</span>
+          <span className={cn('grid size-6 shrink-0 place-items-center rounded-full text-2xs font-semibold ring-1 ring-inset transition-colors duration-300 md:mb-2', done ? 'bg-fg text-bg ring-fg' : 'bg-subtle text-muted ring-border')}>{done ? <Check className="size-3.5" strokeWidth={3} /> : n}</span>
           <div><h2 className="text-sm font-semibold">{title}</h2><p className="mt-0.5 text-xs text-muted">{desc}</p></div>
         </div>
         <div className="min-w-0 space-y-4">{children}</div>
       </div>
-    </Card>
+    </Card></motion.div>
   );
 }
 
@@ -107,8 +113,9 @@ export function ExamNew() {
 
           <Section n={3} title="Timing" desc="A fixed window with a deadline, or an open practice paper." done={timingOk}>
             <Segmented value={mode} onChange={setMode} options={[{ value: 'timed', label: 'Timed exam' }, { value: 'practice', label: 'Open practice' }]} />
+            <AnimatePresence mode="popLayout" initial={false}>
             {mode === 'timed' ? (
-              <>
+              <motion.div key="timed" initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -4 }} transition={{ duration: 0.2, ease }} className="space-y-4">
                 <div className="grid gap-4 sm:grid-cols-2">
                   <Field label="Opens" htmlFor="x-open"><Input id="x-open" type="datetime-local" value={opensAt} onChange={(e) => setOpensAt(e.target.value)} /></Field>
                   <Field label="Deadline" htmlFor="x-close" hint={!timingOk && <span className="text-bad">Must be after the opening time</span>}><Input id="x-close" type="datetime-local" value={closesAt} onChange={(e) => setClosesAt(e.target.value)} /></Field>
@@ -118,7 +125,7 @@ export function ExamNew() {
                   <div><div className="text-sm font-medium">Separate window for each question</div><div className="text-xs text-muted">Release questions one at a time, each with its own deadline.</div></div>
                   <Switch id="x-perq" label="Separate window for each question" checked={perQuestion} onCheckedChange={setPerQuestion} />
                 </div>
-                {perQuestion && (
+                <AnimatePresence initial={false}>{perQuestion && (<Collapse key="pq">
                   <div className="overflow-x-auto rounded-md border border-border scroll-thin">
                     <div className="flex items-center gap-3 border-b border-border bg-subtle px-3 py-2">
                       <label htmlFor="x-nq" className="text-xs font-medium">Questions</label>
@@ -136,15 +143,16 @@ export function ExamNew() {
                       ))}</tbody>
                     </table>
                   </div>
-                )}
-              </>
+                </Collapse>)}</AnimatePresence>
+              </motion.div>
             ) : (
-              <div className="grid gap-4 sm:grid-cols-3">
+              <motion.div key="practice" initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -4 }} transition={{ duration: 0.2, ease }} className="grid gap-4 sm:grid-cols-3">
                 <Field label="Available from" htmlFor="x-pf"><Input id="x-pf" type="date" value={practiceFrom} onChange={(e) => setPracticeFrom(e.target.value)} /></Field>
                 <Field label="Available until" htmlFor="x-pt" optional><Input id="x-pt" type="date" value={practiceTo} onChange={(e) => setPracticeTo(e.target.value)} /></Field>
                 <Field label="Attempts" htmlFor="x-att"><Select id="x-att" value={attempts} onChange={(e) => setAttempts(e.target.value as typeof attempts)}><option value="unlimited">Unlimited</option><option value="1">1 attempt</option><option value="3">Up to 3</option></Select></Field>
-              </div>
+              </motion.div>
             )}
+            </AnimatePresence>
           </Section>
 
           <Section n={4} title="Results" desc="When students see marks, who reviews, and what the result shows." done>
@@ -174,7 +182,7 @@ export function ExamNew() {
               {summary.map(([k, v]) => <div key={k} className="grid grid-cols-[72px_minmax(0,1fr)] gap-2"><dt className="text-xs text-muted">{k}</dt><dd className="min-w-0 break-words text-xs">{v}</dd></div>)}
             </dl>
             <div className="space-y-2 border-t border-border p-3">
-              {missing.length > 0 && <p className="px-1 text-xs text-muted">Add {missing.join(', ')} to schedule.</p>}
+              <AnimatePresence initial={false}>{missing.length > 0 && <Collapse key="missing"><p className="px-1 pb-1 text-xs text-muted">Add {missing.join(', ')} to schedule.</p></Collapse>}</AnimatePresence>
               <Button variant="primary" className="w-full" disabled={missing.length > 0} onClick={() => save(false)}>Schedule exam</Button>
               <Button className="w-full" disabled={!title.trim()} onClick={() => save(true)}>Save as draft</Button>
             </div>

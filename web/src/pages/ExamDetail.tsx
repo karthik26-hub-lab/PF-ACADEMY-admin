@@ -1,8 +1,9 @@
 import { BellRing, CalendarCheck, FileText, Lock, MoreHorizontal, Trash2, Upload, Users } from 'lucide-react';
 import { useState } from 'react';
+import { motion } from 'framer-motion';
 import { toast } from 'sonner';
 import { Page } from '../components/layout/Page';
-import { Avatar, Badge, Button, Card, Dialog, DropdownContent, DropdownItem, DropdownMenu, DropdownSeparator, DropdownTrigger, EmptyState, PageHeader, StatusPill, Table, Tabs, Td, Th, btn } from '../components/ui';
+import { AnimatedNumber, Avatar, Badge, Button, Card, Dialog, DropdownContent, DropdownItem, DropdownMenu, DropdownSeparator, DropdownTrigger, EmptyState, PageHeader, StatusPill, Table, Tabs, Td, Th, btn } from '../components/ui';
 import { href, navigate } from '../lib/router';
 import { examStatus, LATE, POLICY, useStore } from '../lib/store';
 import { fmtDateTime, relativeTo } from '../lib/utils';
@@ -25,11 +26,11 @@ export function ExamDetail({ id }: { id: string }) {
     ? (st === 'scheduled' ? `Opens ${relativeTo(e.opensAt)}` : st === 'live' ? `Closes ${relativeTo(e.closesAt)}` : `Closed`)
     : 'Open practice paper';
 
-  const stats = [
-    ['Uploaded', `${e.received}`, `of ${enrolledList.length} students`],
-    ['Marked by AI', `${e.evaluated}`, `${e.received - e.evaluated} in progress`],
-    ['Flagged', `${e.flagged}`, `${e.reviewed} reviewed`],
-    ['Published', `${e.published}`, POLICY[e.policy].short],
+  const stats: [string, number, string][] = [
+    ['Uploaded', e.received, `of ${enrolledList.length} students`],
+    ['Marked by AI', e.evaluated, `${e.received - e.evaluated} in progress`],
+    ['Flagged', e.flagged, `${e.reviewed} reviewed`],
+    ['Published', e.published, POLICY[e.policy].short],
   ];
 
   return (
@@ -52,7 +53,7 @@ export function ExamDetail({ id }: { id: string }) {
 
       <Card className="mb-5 grid grid-cols-2 gap-px overflow-hidden bg-border lg:grid-cols-4">
         {stats.map(([l, v, s]) => (
-          <div key={l} className="bg-panel px-4 py-3.5"><div className="text-xs text-muted">{l}</div><div className="tnum mt-1 text-2xl font-semibold tracking-tight">{v}</div><div className="text-xs text-faint">{s}</div></div>
+          <div key={l} className="bg-panel px-4 py-3.5"><div className="text-xs text-muted">{l}</div><div className="tnum mt-1 text-2xl font-semibold tracking-tight"><AnimatedNumber value={v} /></div><div className="text-xs text-faint">{s}</div></div>
         ))}
       </Card>
 
@@ -63,6 +64,7 @@ export function ExamDetail({ id }: { id: string }) {
           { value: 'paper', label: 'Question paper' },
           { value: 'settings', label: 'Timing & results' },
         ]} />
+        <motion.div key={tab} initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.2 }}>
         {tab === 'uploads' && (
           <EmptyState icon={Upload} title="No uploads yet">
             {e.draft ? 'This is a draft. Schedule it so students can see it.' : st === 'scheduled' ? `Students can upload from ${fmtDateTime(e.mode === 'timed' ? e.opensAt : e.practiceFrom)}.` : 'Scripts from the Parallax Flow app appear here as students submit, with AI marks and flags.'}
@@ -103,6 +105,7 @@ export function ExamDetail({ id }: { id: string }) {
             ] as const).map(([k, v]) => <div key={k} className="contents"><dt className="text-muted">{k}</dt><dd>{v}</dd></div>)}
           </dl>
         )}
+        </motion.div>
       </Card>
 
       <Dialog open={confirm} onOpenChange={setConfirm} title="Delete this exam?" desc={`“${e.title}” and its uploads will be deleted for everyone. This can’t be undone.`}

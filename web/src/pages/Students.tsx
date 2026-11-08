@@ -36,7 +36,7 @@ export function Students({ tab }: { tab: 'all' | 'requests' }) {
                   <Search className="pointer-events-none absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-faint" />
                   <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search name or roll number" className="pl-8" aria-label="Search students" />
                 </div>
-                <Select value={batch} onChange={(e) => setBatch(e.target.value)} className="w-auto" aria-label="Batch"><option value="all">All batches</option>{batches.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}</Select>
+                <Select value={batch} onChange={(e) => setBatch(e.target.value)} className="w-52" aria-label="Batch"><option value="all">All batches</option>{batches.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}</Select>
                 <span className="ml-auto text-xs text-muted">{shown.length} of {students.length}</span>
               </div>
               <Table>

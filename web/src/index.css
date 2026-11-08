@@ -49,6 +49,7 @@
     color-scheme: dark;
   }
   html, body, #root { height: 100%; }
+  html { scroll-behavior: smooth; }
   body {
     @apply bg-bg text-fg font-sans text-sm antialiased;
     font-feature-settings: 'cv11', 'ss01', 'ss03';
@@ -62,6 +63,8 @@
   .dark input::-webkit-calendar-picker-indicator { filter: invert(1); }
   @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation: none !important; transition: none !important; } }
 }
+
+::view-transition-old(root), ::view-transition-new(root) { animation-duration: 320ms; animation-timing-function: cubic-bezier(0.22, 1, 0.36, 1); }
 
 @layer components {
   .tnum { font-variant-numeric: tabular-nums; }

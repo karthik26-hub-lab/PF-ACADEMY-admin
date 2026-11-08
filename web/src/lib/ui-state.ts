@@ -22,7 +22,12 @@ export const useUI = create<UI>((set) => ({
   toggleCollapsed: () => set((s) => { write('pf-collapsed', s.collapsed ? '0' : '1'); return { collapsed: !s.collapsed }; }),
   mobileNav: false, setMobileNav: (mobileNav) => set({ mobileNav }),
   theme: (read('pf-theme') as Theme) || 'system',
-  setTheme: (theme) => { write('pf-theme', theme); set({ theme }); },
+  setTheme: (theme) => {
+    const run = () => { write('pf-theme', theme); applyTheme(theme); set({ theme }); };
+    // Cross-fade the whole screen when the theme changes, where the browser supports it.
+    const d = document as Document & { startViewTransition?: (cb: () => void) => unknown };
+    if (d.startViewTransition && !matchMedia('(prefers-reduced-motion: reduce)').matches) d.startViewTransition(run); else run();
+  },
 }));
 
 // "System" follows a host-set data-theme (e.g. when embedded) or else the OS setting.
