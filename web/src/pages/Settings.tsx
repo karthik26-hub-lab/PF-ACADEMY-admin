@@ -10,6 +10,7 @@ import { href } from '../lib/router';
 import { LATE, POLICY, useStore, type Access, type Late, type Policy, type Role } from '../lib/store';
 import { useUI } from '../lib/ui-state';
 import { cn } from '../lib/utils';
+import { useShop } from '../lib/shop';
 
 const Row = ({ title, desc, children }: { title: string; desc: string; children: ReactNode }) => (
   <div className="flex items-center justify-between gap-6 px-5 py-4"><div className="min-w-0"><div className="text-sm font-semibold">{title}</div><div className="text-xs text-muted">{desc}</div></div>{children}</div>
@@ -40,6 +41,7 @@ export function Settings({ tab }: { tab: string }) {
           {current === 'security' && <Security />}
           {current === 'subscription' && <Subscription />}
           {current === 'exams' && <ExamDefaults />}
+          {current === 'store' && <StoreRules />}
           {current === 'data' && <DataTab />}
         </motion.div>
       </div>
@@ -241,6 +243,41 @@ function ExamDefaults() {
           <Field label="Flag a step when AI confidence is below" htmlFor="d-flag"><Select id="d-flag" value={defaults.flagBelow} onChange={(e) => setDefaults({ flagBelow: +e.target.value })}>{[0.6, 0.7, 0.8].map((v) => <option key={v} value={v}>{v}</option>)}</Select></Field>
         </div>
         <div className="rounded-2xl bg-warn-soft p-4 text-xs text-warn"><b>Marking rules are being finalised.</b> Current direction: a skipped step gets 0, and every other step is marked on what the student wrote.</div>
+      </div>
+    </Card>
+  );
+}
+
+/** Every number the Store uses; change them here and the Store follows. */
+function StoreRules() {
+  const { rules, setRules } = useShop();
+  const num = (label: string, value: number, apply: (v: number) => void, hint?: string) => (
+    <Field label={label} hint={hint}><Input type="number" min={0} value={value} onChange={(e) => apply(Math.max(0, +e.target.value))} /></Field>
+  );
+  return (
+    <Card>
+      <CardHeader title="Store rules" desc="Seat licences for Parallax Flow products, and the Academy Store add-on." />
+      <div className="space-y-5 p-5">
+        <div className="grid gap-4 sm:grid-cols-2">
+          {num('Seats last (months)', rules.seatMonths, (v) => setRules({ seatMonths: v }), 'New licences expire after this.')}
+          {num('A seat can move after (days)', rules.cooldownDays, (v) => setRules({ cooldownDays: v }), 'Stops one licence being rotated round the whole academy.')}
+        </div>
+        <div><div className="mb-2 text-xs font-semibold">Volume discounts</div>
+          <div className="grid gap-3 sm:grid-cols-3">{rules.tiers.map((t, i) => (
+            <div key={i} className="flex items-center gap-2 rounded-xl bg-subtle p-2.5 text-xs">
+              <Input type="number" aria-label="From seats" value={t.min} onChange={(e) => setRules({ tiers: rules.tiers.map((x, j) => (j === i ? { ...x, min: +e.target.value } : x)) })} className="h-9 w-20" />seats →
+              <Input type="number" aria-label="Percent off" value={t.off} onChange={(e) => setRules({ tiers: rules.tiers.map((x, j) => (j === i ? { ...x, off: +e.target.value } : x)) })} className="h-9 w-16" />% off
+            </div>
+          ))}</div>
+        </div>
+        <div className="space-y-2"><div className="text-xs font-semibold">Academy Store payments</div>
+          <RadioCard id="pay-pf" name="payout" checked={rules.payout === 'parallax'} onChange={() => setRules({ payout: 'parallax' })} title="Parallax Flow collects and pays the academy" desc="Simpler for academies. Parallax Flow keeps a commission and handles payouts and GST invoices." />
+          <RadioCard id="pay-ac" name="payout" checked={rules.payout === 'academy'} onChange={() => setRules({ payout: 'academy' })} title="Each academy connects its own payment account" desc="Money goes straight to the academy. Each academy sets up its own gateway." />
+        </div>
+        <div className="grid gap-4 sm:grid-cols-2">
+          {rules.payout === 'parallax' && num('Commission per sale (%)', rules.commission, (v) => setRules({ commission: v }))}
+          {num('Academy Store add-on (₹ / month)', rules.addonPrice, (v) => setRules({ addonPrice: v }))}
+        </div>
       </div>
     </Card>
   );

@@ -40,7 +40,7 @@ function Hub({ title, desc, tiles, crumb }: { title: string; desc: string; tiles
           const cls = 'group flex h-full flex-col rounded-2xl bg-panel p-5 ring-1 ring-black/[0.04] transition-[transform,box-shadow] duration-300 dark:ring-white/[0.06]';
           return (
             <motion.div key={t.title} initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4, delay: i * 0.05, ease: [0.22, 1, 0.36, 1] }}>
-              {t.to ? <a href={href(t.to)} className={cn(cls, 'hover:-translate-y-0.5 hover:shadow-pop')}>{body}</a>
+              {t.to ? <a href={href(t.to)} className={cn(cls, 'hover:-translate-y-0.5 hover:shadow-float')}>{body}</a>
                 : <div className={cn(cls, 'opacity-80')} title="Coming in a later phase">{body}</div>}
             </motion.div>
           );

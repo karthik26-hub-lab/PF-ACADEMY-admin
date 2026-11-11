@@ -1,6 +1,6 @@
 // Sample academy used for the preview. Every name and figure is made up.
 // The app labels it "Sample data", and Settings → Data clears it.
-import type { Batch, CalendarEvent, Course, Data, Exam, ExamKind, FeeStatus, JoinCode, Member, Student, StudentStatus } from './store';
+import type { Batch, CalendarEvent, Course, RecordedDay, Data, Exam, ExamKind, FeeStatus, JoinCode, Member, Student, StudentStatus } from './store';
 
 function rng(seed: number) {
   return () => { seed |= 0; seed = (seed + 0x6d2b79f5) | 0; let t = Math.imul(seed ^ (seed >>> 15), 1 | seed); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
@@ -100,17 +100,73 @@ export function makeSample(): Data {
   exams.push(mk(57, 'Indirect Tax Practice', day(5, 10), 2, 'mixed', true));
   exams.push(mk(58, 'Final Revision Mock', day(20, 10), 3, 'descriptive', true));
 
+  // ---- Live calendar: offline and online sessions. One entry can run in both places. ----
+  const TOPICS: Record<string, string[]> = {
+    Accounting: ['AS 10 – Property, Plant & Equipment', 'Partnership – Admission', 'Company Accounts – Bonus Issue', 'Cash Flow Statements', 'AS 2 – Inventories'],
+    Taxation: ['PGBP – Allowable Deductions', 'Capital Gains – Exemptions', 'Income from Other Sources', 'GST – Input Tax Credit', 'Set-off of Losses'],
+    'Auditing & Ethics': ['SA 200 – Overall Objectives', 'Audit Evidence', 'Internal Control', 'Audit of Banks', 'Professional Ethics'],
+    'Corporate & Other Laws': ['Share Capital & Debentures', 'Board Meetings', 'Accounts of Companies', 'General Clauses Act', 'Interpretation of Statutes'],
+    'Cost & Management Accounting': ['Marginal Costing', 'Standard Costing', 'Budgetary Control', 'Process Costing', 'Activity Based Costing'],
+    'Financial Management': ['Ratio Analysis', 'Cost of Capital', 'Capital Budgeting', 'Working Capital', 'Leverages'],
+    'Indirect Tax Laws': ['Supply under GST', 'Place of Supply', 'Customs Valuation', 'E-way Bill', 'Returns & Payment'],
+  };
+  const SLOTS: [string, string][] = [['07:00', '09:00'], ['10:00', '12:30'], ['14:00', '16:00'], ['18:00', '20:00']];
+  const facultyFor = (sub: string) => (faculty.find((f) => f.subjects?.includes(sub)) ?? faculty[0]).id;
   const events: CalendarEvent[] = [];
-  exams.filter((e) => !e.draft && +new Date(e.opensAt) > now - 86400e3).forEach((e) => events.push({ id: `ev-${e.id}`, date: e.opensAt.slice(0, 10), time: e.opensAt.slice(11), title: e.title, type: 'exam', batchId: e.batchIds[0] }));
-  for (let d = -3; d < 35; d++) {
+  exams.filter((e) => !e.draft && +new Date(e.opensAt) > now - 86400e3).forEach((e, k) => events.push({
+    id: `ev-${e.id}`, date: e.opensAt.slice(0, 10), time: e.opensAt.slice(11), end: e.closesAt.slice(11), title: e.title, type: 'exam', batchId: e.batchIds[0],
+    subject: e.subject, delivery: k % 3 === 0 ? ['offline', 'online'] : k % 3 === 1 ? ['online'] : ['offline'],
+  }));
+  for (let d = -6; d < 40; d++) {
     const dt = day(d);
     if (dt.getDay() === 0) continue;
-    if (d % 2 === 0) events.push({ id: `c${d}`, date: iso(dt), time: '07:00', title: `${subjects[(d + 7) % subjects.length]} class`, type: 'class', batchId: `b${(d + 20) % ACTIVE}` });
+    const perDay = 2 + ((d + 30) % 3);
+    for (let k = 0; k < perDay; k++) {
+      const sub = subjects[(d + 7 + k * 3) % subjects.length];
+      const [start, end] = SLOTS[(d + 10 + k) % SLOTS.length];
+      const mode = (d + k + 30) % 4;
+      events.push({
+        id: `c${d}-${k}`, date: iso(dt), time: start, end, title: `${sub} class`, type: 'class', batchId: `b${(d + 20 + k * 5) % ACTIVE}`,
+        subject: sub, topic: TOPICS[sub][(d + 10 + k) % 5], facultyId: facultyFor(sub),
+        delivery: mode === 0 ? ['offline', 'online'] : mode === 1 ? ['online'] : ['offline'],
+      });
+    }
+    if (d % 3 === 0) {
+      const sub = subjects[(d + 9) % subjects.length];
+      events.push({ id: `t${d}`, date: iso(dt), title: `Practice set – ${TOPICS[sub][(d + 12) % 5]}`, type: 'task', batchId: `b${(d + 25) % ACTIVE}`, subject: sub });
+    }
   }
   events.push({ id: 'h1', date: iso(day(6)), title: 'Academy holiday', type: 'holiday' });
+  events.push({ id: 'h2', date: iso(day(27)), title: 'Diwali break', type: 'holiday' });
   events.push({ id: 'd1', date: iso(day(3)), title: 'Fee due date · Nov instalment', type: 'deadline' });
-  events.push({ id: 'd2', date: iso(day(12)), title: 'ICAI exam form last date', type: 'deadline' });
-  events.push({ id: 'x1', date: iso(day(17)), time: '16:00', title: 'Toppers’ talk', type: 'event' });
+  events.push({ id: 'd2', date: iso(day(12)), title: 'ICAI exam form last date', type: 'deadline', batchId: 'b9' });
+  events.push({ id: 'd3', date: iso(day(19)), title: 'Registration last date · CA Foundation May 2027', type: 'deadline', batchId: 'b4' });
+  events.push({ id: 'x1', date: iso(day(17)), time: '16:00', end: '18:00', title: 'Toppers’ talk', type: 'event' });
+
+  // ---- Recorded plans: numbered days per course, watched at the student's own pace. ----
+  const COURSE_SUBJECTS: Record<Course, string[]> = {
+    'CA Foundation': ['Accounting', 'Corporate & Other Laws', 'Financial Management'],
+    'CA Inter': ['Accounting', 'Taxation', 'Cost & Management Accounting', 'Auditing & Ethics'],
+    'CA Final': ['Financial Management', 'Indirect Tax Laws', 'Auditing & Ethics', 'Taxation'],
+  };
+  const recorded: RecordedDay[] = [];
+  (Object.keys(COURSE_SUBJECTS) as Course[]).forEach((course) => {
+    let v = 1;
+    for (let dayNo = 1; dayNo <= 36; dayNo++) {
+      const sub = COURSE_SUBJECTS[course][Math.floor((dayNo - 1) / 6) % COURSE_SUBJECTS[course].length];
+      const chapter = TOPICS[sub][(dayNo - 1) % 5];
+      const slot = dayNo % 7;
+      const type: RecordedDay['type'] = slot === 0 ? 'buffer' : slot === 6 ? 'revision' : slot === 3 && dayNo % 2 ? 'task' : 'class';
+      const id = `r-${course.replace(/\W/g, '')}-${dayNo}`;
+      if (type === 'buffer') { recorded.push({ id, course, day: dayNo, type, videos: [] }); continue; }
+      if (type === 'class') {
+        const n = 2 + (dayNo % 2);
+        recorded.push({ id, course, day: dayNo, type, subject: sub, chapter, videos: Array.from({ length: n }, () => `Video ${v++}`), topics: `${chapter}: concepts, illustrations and worked examples` });
+      } else {
+        recorded.push({ id, course, day: dayNo, type, subject: sub, chapter, videos: [], topics: type === 'revision' ? `Revise ${chapter} and attempt the chapter MCQs` : `Solve the ${chapter} practice set` });
+      }
+    }
+  });
 
   const codes: JoinCode[] = [
     { id: 'jc1', code: 'NSA-72KMP', batchId: 'b5', limit: 120, used: 97, createdAt: now - 40 * 86400e3, active: true },
@@ -131,7 +187,7 @@ export function makeSample(): Data {
       { id: 'j6', name: 'Janani M', phone: '+91 95••• 0917', roll: '', at: now - 52 * 3600e3 },
       { id: 'j7', name: 'Pranav Iyer', phone: '+91 93••• 4472', roll: '', at: now - 70 * 3600e3 },
     ],
-    exams, events, codes,
+    exams, events, recorded, codes,
     courses: [
       { id: 'c1', name: 'CA Inter', active: true, subjects: 12, materials: 412 },
       { id: 'c2', name: 'CA Foundation', active: true, subjects: 4, materials: 268 },

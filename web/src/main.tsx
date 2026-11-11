@@ -25,6 +25,7 @@ import { Faculty } from './pages/Faculty';
 import { Calendar } from './pages/Calendar';
 import { AcademicsHub, AssessmentsHub, LearningHub, ReportsHub } from './pages/Hubs';
 import { Settings } from './pages/Settings';
+import { Store } from './pages/Store';
 
 function App() {
   const route = useRoute();
@@ -62,6 +63,7 @@ function App() {
       case 'assessments': return <AssessmentsHub />;
       case 'reports': return <ReportsHub />;
       case 'settings': return <Settings tab={route.tab} />;
+      case 'store': return <Store tab={route.tab} />;
       default: return <Overview />;
     }
   })();
@@ -86,7 +88,7 @@ function Root() {
     <>
       <App />
       <OfflineBanner />
-      <Toaster position="bottom-right" theme={dark ? 'dark' : 'light'} toastOptions={{ className: '!rounded-2xl !text-sm !border-border !shadow-pop' }} />
+      <Toaster position="bottom-right" theme={dark ? 'dark' : 'light'} toastOptions={{ className: '!rounded-2xl !text-sm !border-border !shadow-float' }} />
     </>
   );
 }

@@ -1,5 +1,6 @@
 import { motion } from 'framer-motion';
-import { Layers, Mail, Plus, Search, Trash2, UserCheck, Users } from 'lucide-react';
+import { ChevronRight, Layers, Mail, Plus, Search, Trash2, UserCheck, Users } from 'lucide-react';
+import { StudentTable } from './Students';
 import { useState } from 'react';
 import { toast } from 'sonner';
 import { Page } from '../components/layout/Page';
@@ -13,6 +14,7 @@ export function Faculty() {
   const open = useUI((u) => u.open);
   const [q, setQ] = useState('');
   const [edit, setEdit] = useState<Member | null>(null);
+  const [list, setList] = useState<Member | null>(null);
   const shown = members.filter((m) => !q || `${m.name} ${(m.subjects || []).join(' ')}`.toLowerCase().includes(q.toLowerCase()));
   const studentsOf = (m: Member) => students.filter((s) => m.batchIds.includes(s.batchId)).length;
 
@@ -35,7 +37,7 @@ export function Faculty() {
               <div className="mt-4 flex flex-wrap gap-1.5">{(m.subjects || []).map((s) => <span key={s} className="rounded-full bg-subtle px-2.5 py-1 text-2xs font-medium">{s}</span>)}</div>
               <div className="mt-4 grid grid-cols-2 gap-2">
                 <div className="rounded-xl bg-subtle p-3"><div className="flex items-center gap-1.5 text-2xs text-muted"><Layers className="size-3" />Batches</div><div className="tnum mt-0.5 text-lg font-bold">{m.batchIds.length}</div></div>
-                <div className="rounded-xl bg-subtle p-3"><div className="flex items-center gap-1.5 text-2xs text-muted"><Users className="size-3" />Students</div><div className="tnum mt-0.5 text-lg font-bold">{studentsOf(m)}</div></div>
+                <button onClick={() => setList(m)} className="rounded-xl bg-subtle p-3 text-left transition hover:bg-hover"><div className="flex items-center gap-1.5 text-2xs text-muted"><Users className="size-3" />Students<ChevronRight className="ml-auto size-3" /></div><div className="tnum mt-0.5 text-lg font-bold">{studentsOf(m)}</div></button>
               </div>
               <div className="mt-2 truncate text-2xs text-muted">{m.batchIds.map((id) => batches.find((b) => b.id === id)?.name).filter(Boolean).join(' · ') || 'No batches assigned'}</div>
               <div className="mt-4 flex gap-2 border-t border-border pt-4">
@@ -47,6 +49,11 @@ export function Faculty() {
         </div>
       ) : <Card><EmptyState icon={UserCheck} title={members.length ? 'No faculty match' : 'No faculty yet'} action={<Button variant="primary" onClick={() => open('invite')}><Plus /> Add faculty</Button>} /></Card>}
 
+      {list && (
+        <Dialog wide open onOpenChange={(v) => !v && setList(null)} title={`${list.name}'s students`} desc={`${studentsOf(list)} students across ${list.batchIds.length} batches`}>
+          <div className="-mx-5 pb-2"><StudentTable students={students.filter((s) => list.batchIds.includes(s.batchId))} /></div>
+        </Dialog>
+      )}
       <AssignDialog member={edit} onClose={() => setEdit(null)} onSave={(patch) => { if (edit) { updateMember(edit.id, patch); toast.success('Saved'); } setEdit(null); }} />
     </Page>
   );

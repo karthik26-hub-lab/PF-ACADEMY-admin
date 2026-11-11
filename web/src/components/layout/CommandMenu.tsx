@@ -33,7 +33,7 @@ export function CommandMenu() {
     <DialogPrimitive.Root open={isOpen} onOpenChange={(v) => (v ? open('command') : close())}>
       <DialogPrimitive.Portal>
         <DialogPrimitive.Overlay className="fixed inset-0 z-50 bg-black/30 backdrop-blur-[2px] data-[state=open]:animate-fade-in data-[state=closed]:animate-fade-out" />
-        <DialogPrimitive.Content aria-describedby={undefined} className="fixed left-1/2 top-[14vh] z-50 w-[calc(100vw-32px)] max-w-xl -translate-x-1/2 overflow-hidden rounded-lg bg-panel shadow-pop data-[state=open]:animate-dialog-in data-[state=closed]:animate-dialog-out">
+        <DialogPrimitive.Content aria-describedby={undefined} className="fixed left-1/2 top-[14vh] z-50 w-[calc(100vw-32px)] max-w-xl -translate-x-1/2 overflow-hidden rounded-lg bg-panel shadow-float data-[state=open]:animate-dialog-in data-[state=closed]:animate-dialog-out">
           <DialogPrimitive.Title className="sr-only">Search and commands</DialogPrimitive.Title>
           <Command loop className="flex flex-col">
             <Command.Input autoFocus placeholder="Search exams, students, batches, or type a command…" className="h-12 border-b border-border bg-transparent px-4 text-sm outline-none placeholder:text-faint" />
@@ -55,6 +55,7 @@ export function CommandMenu() {
                 {item('academic calendar schedule', FileText, 'Academic calendar', () => go({ page: 'calendar' }))}
                 {item('learning courses materials', FileText, 'Learning', () => go({ page: 'learning' }))}
                 {item('assessments tests exams', ClipboardCheck, 'Assessments', () => go({ page: 'assessments' }))}
+                {item('store ebooks licences seats', BarChart3, 'Store', () => go({ page: 'store', tab: 'pf' }))}
                 {item('reports', BarChart3, 'Reports', () => go({ page: 'reports' }))}
                 {item('settings profile', Settings, 'Settings', () => go({ page: 'settings', tab: 'general' }))}
               </Command.Group>

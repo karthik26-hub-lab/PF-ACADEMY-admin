@@ -244,7 +244,7 @@ export function Dialog({ open, onOpenChange, title, desc, children, footer, wide
       <DialogPrimitive.Portal>
         <DialogPrimitive.Overlay className="fixed inset-0 z-50 bg-black/40 backdrop-blur-[2px] data-[state=open]:animate-fade-in data-[state=closed]:animate-fade-out" />
         <DialogPrimitive.Content aria-describedby={undefined}
-          className={cn('fixed left-1/2 top-[12vh] z-50 flex max-h-[80vh] w-[calc(100vw-32px)] -translate-x-1/2 flex-col rounded-2xl bg-panel shadow-pop', wide ? 'max-w-2xl' : 'max-w-md', 'data-[state=open]:animate-dialog-in data-[state=closed]:animate-dialog-out')}>
+          className={cn('fixed left-1/2 top-[12vh] z-50 flex max-h-[80vh] w-[calc(100vw-32px)] -translate-x-1/2 flex-col rounded-2xl bg-panel shadow-float', wide ? 'max-w-2xl' : 'max-w-md', 'data-[state=open]:animate-dialog-in data-[state=closed]:animate-dialog-out')}>
           <div className="flex items-start justify-between gap-4 px-5 pb-1 pt-4">
             <div><DialogPrimitive.Title className="text-base font-semibold">{title}</DialogPrimitive.Title>
               {desc && <DialogPrimitive.Description className="mt-0.5 text-sm text-muted">{desc}</DialogPrimitive.Description>}</div>
@@ -263,13 +263,13 @@ export const DropdownTrigger = Menu.Trigger;
 export function DropdownContent({ children, align = 'end', className }: { children: React.ReactNode; align?: 'start' | 'end'; className?: string }) {
   return (
     <Menu.Portal>
-      <Menu.Content align={align} sideOffset={6} className={cn('z-50 min-w-48 origin-[var(--radix-dropdown-menu-content-transform-origin)] rounded-xl bg-panel p-1.5 shadow-pop data-[state=open]:animate-menu-in data-[state=closed]:animate-menu-out', className)}>{children}</Menu.Content>
+      <Menu.Content align={align} sideOffset={6} className={cn('z-50 min-w-48 origin-[var(--radix-dropdown-menu-content-transform-origin)] rounded-xl bg-panel p-1.5 shadow-float data-[state=open]:animate-menu-in data-[state=closed]:animate-menu-out', className)}>{children}</Menu.Content>
     </Menu.Portal>
   );
 }
-export const DropdownItem = ({ children, onSelect, danger, disabled }: { children: React.ReactNode; onSelect?: () => void; danger?: boolean; disabled?: boolean }) => (
+export const DropdownItem = ({ children, onSelect, danger, disabled, className }: { children: React.ReactNode; onSelect?: () => void; danger?: boolean; disabled?: boolean; className?: string }) => (
   <Menu.Item disabled={disabled} onSelect={onSelect}
-    className={cn('flex h-9 cursor-default select-none items-center gap-2 rounded-lg px-2.5 text-sm outline-none transition-colors duration-100 data-[disabled]:opacity-40 data-[highlighted]:bg-hover [&_svg]:size-4 [&_svg]:text-muted', danger && 'text-bad [&_svg]:text-bad')}>{children}</Menu.Item>
+    className={cn('flex h-9 cursor-default select-none items-center gap-2 rounded-lg px-2.5 text-sm outline-none transition-colors duration-100 data-[disabled]:opacity-40 data-[highlighted]:bg-hover [&_svg]:size-4 [&_svg]:text-muted', danger && 'text-bad [&_svg]:text-bad', className)}>{children}</Menu.Item>
 );
 export const DropdownLabel = ({ children }: { children: React.ReactNode }) => <Menu.Label className="px-2 pb-1 pt-1.5 text-2xs font-medium text-faint">{children}</Menu.Label>;
 export const DropdownSeparator = () => <Menu.Separator className="-mx-1 my-1 h-px bg-border" />;

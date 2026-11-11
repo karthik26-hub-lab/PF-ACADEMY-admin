@@ -24,13 +24,14 @@ export default {
         good: { DEFAULT: 'hsl(var(--good))', soft: 'hsl(var(--good-soft))' },
         pop: { DEFAULT: 'hsl(var(--pop))', fg: 'hsl(var(--pop-fg))' },
         coral: { DEFAULT: 'hsl(var(--coral))', fg: 'hsl(var(--coral-fg))' },
+        sun: { DEFAULT: 'hsl(var(--sun))', fg: 'hsl(var(--sun-fg))' },
         warn: { DEFAULT: 'hsl(var(--warn))', soft: 'hsl(var(--warn-soft))' },
         bad: { DEFAULT: 'hsl(var(--bad))', soft: 'hsl(var(--bad-soft))' },
       },
       borderRadius: { sm: '6px', DEFAULT: '8px', md: '10px', lg: '14px', xl: '18px', '2xl': '22px', '3xl': '28px' },
       boxShadow: {
         xs: '0 1px 2px 0 hsl(var(--shadow) / 0.05)',
-        pop: '0 0 0 1px hsl(var(--border)), 0 8px 24px -6px hsl(var(--shadow) / 0.16), 0 2px 6px -2px hsl(var(--shadow) / 0.08)',
+        float: '0 0 0 1px hsl(var(--border)), 0 8px 24px -6px hsl(var(--shadow) / 0.16), 0 2px 6px -2px hsl(var(--shadow) / 0.08)',
       },
       keyframes: {
         'fade-in': { from: { opacity: 0 }, to: { opacity: 1 } },

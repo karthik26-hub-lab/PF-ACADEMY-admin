@@ -79,7 +79,7 @@ function RowMenu({ s, children }: { s: Student; children: ReactNode }) {
     <CM.Root>
       <CM.Trigger asChild>{children}</CM.Trigger>
       <CM.Portal>
-        <CM.Content className="z-50 min-w-52 rounded-xl bg-panel p-1.5 shadow-pop data-[state=open]:animate-menu-in">
+        <CM.Content className="z-50 min-w-52 rounded-xl bg-panel p-1.5 shadow-float data-[state=open]:animate-menu-in">
           <CM.Label className="truncate px-2.5 pb-1 pt-1.5 text-2xs font-medium text-faint">{s.name} · {s.studentId}</CM.Label>
           <CM.Item className={menuItem} onSelect={() => navigate({ page: 'student', id: s.id })}><ExternalLink /> Open profile</CM.Item>
           <CM.Item className={menuItem} onSelect={() => copy(s.loginId, 'Login ID')}><Copy /> Copy login ID</CM.Item>
@@ -104,7 +104,7 @@ function BulkBar({ ids, total, onSelectAll, onClear }: { ids: string[]; total: n
   const chip = 'flex h-9 items-center gap-1.5 rounded-full px-3 text-xs font-semibold transition hover:bg-bg/15 [&_svg]:size-4';
   return (
     <motion.div initial={{ opacity: 0, y: 24, x: '-50%' }} animate={{ opacity: 1, y: 0, x: '-50%' }} exit={{ opacity: 0, y: 24, x: '-50%' }} transition={{ type: 'spring', stiffness: 500, damping: 36 }}
-      className="fixed bottom-5 left-1/2 z-40 flex max-w-[calc(100vw-24px)] flex-wrap items-center gap-1 rounded-[22px] bg-fg p-1.5 pl-4 text-bg shadow-pop">
+      className="fixed bottom-5 left-1/2 z-40 flex max-w-[calc(100vw-24px)] flex-wrap items-center gap-1 rounded-[22px] bg-fg p-1.5 pl-4 text-bg shadow-float">
       <span className="tnum pr-2 text-xs font-bold">{n.toLocaleString('en-IN')} selected</span>
       {n < total && <button onClick={onSelectAll} className="pr-2 text-xs underline underline-offset-2 opacity-80 hover:opacity-100">Select all {total.toLocaleString('en-IN')}</button>}
       <DropdownMenu>
@@ -240,7 +240,7 @@ export function Students({ tab }: { tab: 'all' | 'requests' }) {
       {s.students.length > 0 && tab === 'all' && (
         <div className="mb-5 grid gap-4 md:grid-cols-3">
           <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className={cn(card, 'flex items-center justify-between')}>
-            <div><div className="text-xs text-muted">Active students</div><div className="tnum mt-1 text-[30px] font-bold tracking-tight">{active.toLocaleString('en-IN')}</div><div className="text-2xs text-muted">of {s.students.length.toLocaleString('en-IN')} enrolled · {avgProgress}% average learning progress</div></div>
+            <div><div className="text-xs text-muted">Active students</div><div className="tnum mt-1 text-[30px] font-bold leading-[1.1] tracking-tight">{active.toLocaleString('en-IN')}</div><div className="text-2xs text-muted">of {s.students.length.toLocaleString('en-IN')} enrolled · {avgProgress}% average learning progress</div></div>
             <Ring value={(active / s.students.length) * 100} size={72} stroke={8} tone="pop" label="Active share" />
           </motion.div>
           <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.05 }} className={cn(card, 'flex items-center gap-5')}>

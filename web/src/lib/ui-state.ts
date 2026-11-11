@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 
-export type DialogName = 'batch' | 'student' | 'invite' | 'import' | 'command' | 'event' | 'shortcuts' | null;
+export type DialogName = 'batch' | 'student' | 'invite' | 'import' | 'command' | 'event' | 'recorded' | 'calimport' | 'shortcuts' | null;
 export type Theme = 'light' | 'dark' | 'system';
 
 const read = (k: string) => { try { return localStorage.getItem(k); } catch { return null; } };
@@ -14,6 +14,8 @@ interface UI {
   theme: Theme; setTheme: (t: Theme) => void;
   examPreset: { status: string; kind: string }; setExamPreset: (p: Partial<{ status: string; kind: string }>) => void;
   studentPreset: { batch: string; fee: string }; setStudentPreset: (p: Partial<{ batch: string; fee: string }>) => void;
+  /** A date the calendar should jump to next (set after an import). */
+  calendarJump: string | null; setCalendarJump: (d: string | null) => void;
 }
 
 export const useUI = create<UI>((set) => ({
@@ -24,6 +26,7 @@ export const useUI = create<UI>((set) => ({
   toggleCollapsed: () => set((s) => { write('pf-collapsed', s.collapsed ? '0' : '1'); return { collapsed: !s.collapsed }; }),
   mobileNav: false, setMobileNav: (mobileNav) => set({ mobileNav }),
   examPreset: { status: 'all', kind: 'all' }, setExamPreset: (p) => set((s) => ({ examPreset: { ...s.examPreset, ...p } })),
+  calendarJump: null, setCalendarJump: (calendarJump) => set({ calendarJump }),
   studentPreset: { batch: 'all', fee: 'all' }, setStudentPreset: (p) => set((s) => ({ studentPreset: { ...s.studentPreset, ...p } })),
   theme: (read('pf-theme') as Theme) || 'system',
   setTheme: (theme) => {

@@ -12,7 +12,10 @@ export type ExamStatus = 'draft' | 'scheduled' | 'live' | 'closed';
 export type ExamKind = 'mcq' | 'descriptive' | 'mixed';
 export type StudentStatus = 'active' | 'inactive' | 'suspended';
 export type FeeStatus = 'paid' | 'partial' | 'due';
-export type EventType = 'class' | 'exam' | 'deadline' | 'holiday' | 'event';
+export type EventType = 'class' | 'exam' | 'deadline' | 'holiday' | 'event' | 'task';
+/** Where a live session happens. One entry can be on both, so the academy never has to keep two schedules in sync. */
+export type Delivery = 'offline' | 'online';
+export type RecordedType = 'class' | 'revision' | 'buffer' | 'task';
 
 export interface Academy { name: string; city: string; email: string; phone: string; code: string }
 export interface Me { name: string; email: string }
@@ -36,7 +39,17 @@ export interface Exam {
   draft: boolean; closedAt: number | null; createdAt: number;
   received: number; evaluated: number; flagged: number; reviewed: number; published: number;
 }
-export interface CalendarEvent { id: string; date: string; time?: string; title: string; type: EventType; batchId?: string }
+/**
+ * A dated entry on the live calendar. `time` is the start, `end` the finish.
+ * `batchId` empty means the whole academy. A deadline is shown to every student in the batch's course
+ * (or everyone, with no batch), in the offline, online and recorded views alike.
+ */
+export interface CalendarEvent {
+  id: string; date: string; time?: string; end?: string; title: string; type: EventType; batchId?: string;
+  subject?: string; topic?: string; facultyId?: string; delivery?: Delivery[];
+}
+/** One day of a course's recorded (self-paced) plan. Days are numbered, not dated. */
+export interface RecordedDay { id: string; course: Course; day: number; type: RecordedType; subject?: string; chapter?: string; videos: string[]; topics?: string }
 export interface JoinCode { id: string; code: string; batchId: string; limit: number; used: number; createdAt: number; active: boolean }
 export interface CourseInfo { id: string; name: Course; active: boolean; subjects: number; materials: number }
 export interface Revenue { ebooks: number; tests: number; questionBanks: number; monthly: number[] }
@@ -49,7 +62,7 @@ export interface Data {
   sample: boolean;
   academy: Academy; me: Me;
   batches: Batch[]; members: Member[]; students: Student[]; joinRequests: JoinRequest[]; exams: Exam[];
-  events: CalendarEvent[]; codes: JoinCode[]; courses: CourseInfo[]; revenue: Revenue; feed: Feed;
+  events: CalendarEvent[]; recorded: RecordedDay[]; codes: JoinCode[]; courses: CourseInfo[]; revenue: Revenue; feed: Feed;
   activity: Activity[]; defaults: Defaults; access: Access;
 }
 
@@ -74,6 +87,11 @@ interface State extends Data {
   updateMember: (id: string, m: Partial<Member>) => void;
   removeMember: (id: string) => void;
   addEvent: (e: Omit<CalendarEvent, 'id'>) => void;
+  addEvents: (list: Omit<CalendarEvent, 'id'>[]) => void;
+  addRecordedMany: (list: Omit<RecordedDay, 'id'>[]) => void;
+  updateEvent: (id: string, e: Omit<CalendarEvent, 'id'>) => void;
+  saveRecorded: (r: Omit<RecordedDay, 'id'>, id?: string) => void;
+  removeRecorded: (id: string) => void;
   removeEvent: (id: string) => void;
   createJoinCode: (batchId: string, limit: number) => JoinCode;
   toggleJoinCode: (id: string) => void;
@@ -98,14 +116,14 @@ export const emptyData = (): Data => ({
   sample: false,
   academy: { name: '', city: '', email: '', phone: '', code: '' },
   me: { name: '', email: '' },
-  batches: [], members: [], students: [], joinRequests: [], exams: [], events: [], codes: [], courses: [],
+  batches: [], members: [], students: [], joinRequests: [], exams: [], events: [], recorded: [], codes: [], courses: [],
   revenue: { ebooks: 0, tests: 0, questionBanks: 0, monthly: Array(12).fill(0) }, feed: { uploads: [], studentActs: [] },
   activity: [],
   defaults: { policy: 'clean', late: 'none', flagBelow: 0.7 },
   access: { academyCreatesLogins: true, joinWithCode: true, approveJoins: true, otpReset: false },
 });
 
-const DATA_KEYS: (keyof Data)[] = ['sample', 'academy', 'me', 'batches', 'members', 'students', 'joinRequests', 'exams', 'events', 'codes', 'courses', 'revenue', 'feed', 'activity', 'defaults', 'access'];
+const DATA_KEYS: (keyof Data)[] = ['sample', 'academy', 'me', 'batches', 'members', 'students', 'joinRequests', 'exams', 'events', 'recorded', 'codes', 'courses', 'revenue', 'feed', 'activity', 'defaults', 'access'];
 
 export const useStore = create<State>()(
   persist(
@@ -169,6 +187,11 @@ export const useStore = create<State>()(
         updateMember: (id, m) => set((s) => ({ members: s.members.map((x) => (x.id === id ? { ...x, ...m } : x)) })),
         removeMember: (id) => set((s) => ({ members: s.members.filter((x) => x.id !== id) })),
         addEvent: (e) => set((s) => ({ events: [...s.events, { ...e, id: uid() }] })),
+        addEvents: (list) => { set((s) => ({ events: [...s.events, ...list.map((e) => ({ ...e, id: uid() }))] })); log('settings', `${list.length} calendar entries imported`); },
+        addRecordedMany: (list) => { set((s) => ({ recorded: [...s.recorded, ...list.map((r) => ({ ...r, id: uid() }))] })); log('settings', `${list.length} recorded plan days imported`); },
+        updateEvent: (id, e) => set((s) => ({ events: s.events.map((x) => (x.id === id ? { ...e, id } : x)) })),
+        saveRecorded: (r, id) => set((s) => ({ recorded: id ? s.recorded.map((x) => (x.id === id ? { ...r, id } : x)) : [...s.recorded, { ...r, id: uid() }] })),
+        removeRecorded: (id) => set((s) => ({ recorded: s.recorded.filter((x) => x.id !== id) })),
         removeEvent: (id) => set((s) => ({ events: s.events.filter((x) => x.id !== id) })),
         createJoinCode: (batchId, limit) => {
           const base = (get().academy.name || 'PF').replace(/[^A-Za-z ]/g, '').split(/\s+/).filter(Boolean).map((w) => w[0]).join('').toUpperCase().slice(0, 3) || 'PF';
@@ -192,7 +215,7 @@ export const useStore = create<State>()(
       };
     },
     {
-      name: 'pf-academy-v3',
+      name: 'pf-academy-v4',
       storage: createJSONStorage(() => {
         try { localStorage.setItem('__t', '1'); localStorage.removeItem('__t'); return localStorage; }
         catch { const m = new Map<string, string>(); return { getItem: (k) => m.get(k) ?? null, setItem: (k, v) => void m.set(k, v), removeItem: (k) => void m.delete(k) }; }

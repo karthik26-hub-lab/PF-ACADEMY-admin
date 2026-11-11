@@ -7,7 +7,8 @@ import { AnimatedNumber, Avatar, Badge, Button, EmptyState, btn } from '../compo
 import { href, navigate, type Route } from '../lib/router';
 import { examStatus, inr, useStore } from '../lib/store';
 import { useUI } from '../lib/ui-state';
-import { cn, fmtDate, inrShort, timeAgo } from '../lib/utils';
+import { salesSummary, useShop } from '../lib/shop';
+import { cn, downloadCSV, fmtDate, inrShort, timeAgo } from '../lib/utils';
 import { useTick } from '../lib/hooks';
 import { toast } from 'sonner';
 
@@ -45,9 +46,14 @@ export function Overview() {
   const mcq = s.exams.filter((e) => e.kind === 'mcq').length;
   const desc = s.exams.filter((e) => e.kind === 'descriptive').length;
   const activeBatches = s.batches.filter((b) => b.status === 'active');
-  const totalRevenue = s.revenue.ebooks + s.revenue.tests + s.revenue.questionBanks;
+  const shop = useShop();
+  const sales = salesSummary(shop.orders, shop.mine);
+  const totalRevenue = sales.total;
+  // Last 30 days against the 30 before, so a half-finished month never reads as a drop.
+  const inWindow = (from: number, to: number) => shop.orders.filter((o) => o.at > Date.now() - to * 864e5 && o.at <= Date.now() - from * 864e5).reduce((a, o) => a + o.amount, 0);
+  const prevSales = inWindow(30, 60), salesGrowth = prevSales ? Math.round(((inWindow(0, 30) - prevSales) / prevSales) * 100) : 0;
   const months = Array.from({ length: 6 }, (_, i) => { const d = new Date(); d.setMonth(d.getMonth() - 5 + i); return d.toLocaleDateString('en-IN', { month: 'short' }); });
-  const monthly = s.revenue.monthly.slice(-6);
+  const monthly = sales.monthly;
   const regsByMonth = Array.from({ length: 8 }, (_, i) => { const from = new Date(); from.setMonth(from.getMonth() - 7 + i, 1); const to = new Date(from); to.setMonth(to.getMonth() + 1); return s.students.filter((x) => x.createdAt >= +from && x.createdAt < +to).length; });
   const DAY = 86400e3, t = Date.now();
   const last30 = s.students.filter((x) => x.createdAt > t - 30 * DAY).length, prev30 = s.students.filter((x) => x.createdAt > t - 60 * DAY && x.createdAt <= t - 30 * DAY).length;
@@ -60,6 +66,15 @@ export function Overview() {
   useTick();
   const pendingReview = completed.reduce((a, x) => a + Math.max(0, x.e.flagged - x.e.reviewed), 0);
   const feesDue = s.students.filter((x) => x.fee === 'due').length;
+  // One spreadsheet with the figures on this page.
+  const exportReport = () => void downloadCSV(`dashboard-${now.toISOString().slice(0, 10)}.csv`, [
+    ['Section', 'Item', 'Value'],
+    ['Students', 'Enrolled', s.students.length], ['Students', 'Joined in the last 30 days', last30], ['Students', 'Fees due', feesDue],
+    ['Batches', 'Active', activeBatches.length], ['Batches', 'Archived', s.batches.length - activeBatches.length],
+    ['Exams', 'Live', live.length], ['Exams', 'Scheduled', scheduled.length], ['Exams', 'Completed', completed.length], ['Exams', 'Scripts waiting for review', pendingReview],
+    ['Store revenue', 'E-books', sales.kinds.ebooks], ['Store revenue', 'Tests', sales.kinds.tests], ['Store revenue', 'Question banks', sales.kinds.banks],
+    ...monthly.map((v, i) => ['Store revenue by month', months[i], v]),
+  ]).then((ok) => ok && toast.success('Dashboard report exported'));
   const attention = [
     { n: live.length, label: live.length === 1 ? 'exam live now' : 'exams live now', icon: Radio, go: () => openExams('live'), hot: true },
     { n: pendingReview, label: 'scripts waiting for faculty review', icon: ScanLine, go: () => openExams('closed') },
@@ -75,7 +90,7 @@ export function Overview() {
           <h1 className="mt-1 text-[30px] font-bold leading-tight tracking-[-0.03em]">Dashboard</h1>
         </div>
         <div className="flex flex-wrap gap-2">
-          <Button onClick={() => toast('Reports export arrives with the Reports phase')}><Download /> Export report</Button>
+          <Button onClick={exportReport}><Download /> Export report</Button>
           <a href={href({ page: 'exam-new' })} className={btn('primary')}><Plus /> Create test</a>
         </div>
       </div>
@@ -102,14 +117,14 @@ export function Overview() {
           <div className="grid gap-4 sm:grid-cols-2 lg:col-span-4 lg:grid-cols-1">
             <Box className="flex flex-col">
               <div className="flex items-start justify-between"><div><div className="text-xs font-medium text-muted">Total students</div><Updated /></div><IconDot icon={Users} /></div>
-              <div className="mt-1 flex items-center gap-3"><span className="tnum text-[34px] font-bold tracking-tight"><AnimatedNumber value={s.students.length} /></span>{s.students.length > 0 && <Delta value={growth} />}</div>
+              <div className="mb-0.5 mt-2 flex items-center gap-3"><span className="tnum text-[34px] font-bold leading-[1.1] tracking-tight"><AnimatedNumber value={s.students.length} /></span>{s.students.length > 0 && <Delta value={growth} />}</div>
               <div className="text-2xs text-muted">{last30} joined in the last 30 days</div>
               <Sparkline values={regsByMonth} className="my-3 h-12" />
               <ViewLink to={{ page: 'students' }}>View all students</ViewLink>
             </Box>
             <Box className="flex flex-col" delay={0.05}>
               <div className="flex items-start justify-between"><div><div className="text-xs font-medium text-muted">Total batches</div><Updated /></div><IconDot icon={Layers} /></div>
-              <div className="mt-1 flex items-center gap-3"><span className="tnum text-[34px] font-bold tracking-tight"><AnimatedNumber value={s.batches.length} /></span><Badge tone="ink">{activeBatches.length} active</Badge></div>
+              <div className="mb-0.5 mt-2 flex items-center gap-3"><span className="tnum text-[34px] font-bold leading-[1.1] tracking-tight"><AnimatedNumber value={s.batches.length} /></span><Badge tone="ink">{activeBatches.length} active</Badge></div>
               <div className="my-4 flex h-3 gap-1 overflow-hidden rounded-full">
                 {(['CA Foundation', 'CA Inter', 'CA Final'] as const).map((c, i) => { const n = activeBatches.filter((b) => b.course === c).length; return n ? <motion.div key={c} title={`${c}: ${n}`} initial={{ flexGrow: 0 }} animate={{ flexGrow: n }} transition={{ duration: 0.8, ease }} className={cn('h-full rounded-full', i === 0 ? 'bg-pop' : i === 1 ? 'bg-fg' : 'hatch')} /> : null; })}
               </div>
@@ -120,14 +135,14 @@ export function Overview() {
 
           {/* 4. Revenue */}
           <Box className="lg:col-span-5" delay={0.1}>
-            <BoxHead title="Total revenue" sub="Last 6 months" right={<Badge tone="pop">Sample</Badge>} />
-            <div className="flex flex-wrap items-center gap-3"><span className="tnum text-[34px] font-bold tracking-tight" title={inr(totalRevenue)}>{inrShort(totalRevenue)}</span><Delta value={monthly.length > 1 && monthly[monthly.length - 2] ? Math.round(((monthly[monthly.length - 1] - monthly[monthly.length - 2]) / monthly[monthly.length - 2]) * 100) : 0} /></div>
+            <BoxHead title="Store revenue" sub={shop.addon ? 'Your store, all time' : 'Preview · store add-on locked'} right={<Badge tone="pop">Sample</Badge>} />
+            <div className="flex flex-wrap items-center gap-3"><span className="tnum text-[34px] font-bold leading-[1.1] tracking-tight" title={inr(totalRevenue)}>{inrShort(totalRevenue)}</span><Delta value={salesGrowth} /></div>
             <div className="mt-8"><HatchedBars data={monthly.map((v, i) => ({ label: months[i], value: v }))} height={170} format={(v) => inrShort(v)} highlight={monthly.length - 1} /></div>
             <div className="mt-5 grid grid-cols-3 gap-2">
-              {[['E-books', s.revenue.ebooks], ['Tests', s.revenue.tests], ['Question banks', s.revenue.questionBanks]].map(([l, v]) => (
-                <button key={l as string} onClick={() => toast('Revenue reports arrive with the Reports phase')} className="group rounded-xl bg-subtle p-3 text-left transition hover:bg-hover">
+              {[['E-books', sales.kinds.ebooks], ['Tests', sales.kinds.tests], ['Question banks', sales.kinds.banks]].map(([l, v]) => (
+                <button key={l as string} onClick={() => navigate({ page: 'store', tab: 'mine' })} className="group rounded-xl bg-subtle p-3 text-left transition hover:bg-hover">
                   <div className="text-2xs text-muted">{l}</div><div className="tnum mt-0.5 text-sm font-bold" title={inr(v as number)}>{inrShort(v as number)}</div>
-                  <div className="mt-1 flex items-center gap-1 text-2xs font-semibold text-muted group-hover:text-fg">Report <ArrowRight className="size-3" /></div>
+                  <div className="mt-1 flex items-center gap-1 text-2xs font-semibold text-muted group-hover:text-fg">Open store <ArrowRight className="size-3" /></div>
                 </button>
               ))}
             </div>

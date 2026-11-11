@@ -1,5 +1,5 @@
 import { AnimatePresence, motion } from 'framer-motion';
-import { Bell, BookOpen, Building2, ClipboardList, CreditCard, Database, GraduationCap, KeyRound, LayoutGrid, LogOut, Moon, Plug, Search, ShieldCheck, Sun, UserCog, Users } from 'lucide-react';
+import { ShoppingBag, Bell, BookOpen, Building2, ClipboardList, CreditCard, Database, GraduationCap, KeyRound, LayoutGrid, LogOut, Moon, Plug, Search, ShieldCheck, Sun, UserCog, Users } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { href, sectionOf, type Route, type Section } from '../../lib/router';
 import { useStore } from '../../lib/store';
@@ -12,13 +12,14 @@ const NAV: { id: Section; label: string; route: Route; icon: typeof LayoutGrid }
   { id: 'academics', label: 'Academics', route: { page: 'academics' }, icon: GraduationCap },
   { id: 'learning', label: 'Learning', route: { page: 'learning' }, icon: BookOpen },
   { id: 'assessments', label: 'Assessments', route: { page: 'assessments' }, icon: ClipboardList },
+  { id: 'store', label: 'Store', route: { page: 'store', tab: 'pf' }, icon: ShoppingBag },
   { id: 'reports', label: 'Reports', route: { page: 'reports' }, icon: Users },
 ];
 
 export const SETTINGS_TABS = [
   ['general', 'Academy profile', Building2], ['access', 'User access', Users], ['roles', 'Roles & permissions', UserCog],
   ['notifications', 'Notifications', Bell], ['integrations', 'Integrations', Plug], ['security', 'Security', ShieldCheck],
-  ['subscription', 'Subscription', CreditCard], ['exams', 'Exam defaults', ClipboardList], ['data', 'Data', Database],
+  ['subscription', 'Subscription', CreditCard], ['store', 'Store rules', ShoppingBag], ['exams', 'Exam defaults', ClipboardList], ['data', 'Data', Database],
 ] as const;
 
 function ThemeToggle() {

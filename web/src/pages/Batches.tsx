@@ -1,5 +1,5 @@
 import { motion } from 'framer-motion';
-import { Archive, ArchiveRestore, ArrowUpRight, BookOpen, CalendarDays, Layers, Megaphone, MoreHorizontal, Plus, Search, Send, Trash2, UserPlus, Users } from 'lucide-react';
+import { Archive, ArchiveRestore, ArrowUpRight, BookOpen, CalendarDays, Layers, Megaphone, MoreHorizontal, Plus, Search, Send, Trash2, UserPlus, Users, Pencil } from 'lucide-react';
 import { useState } from 'react';
 import { toast } from 'sonner';
 import { HatchedBars, Ring } from '../components/charts';
@@ -37,13 +37,14 @@ export function Batches() {
             const fac = members.filter((m) => b.facultyIds.includes(m.id));
             return (
               <motion.div key={b.id} layout initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.35, delay: Math.min(i, 8) * 0.03 }}>
-                <div className="group relative flex h-full flex-col rounded-2xl bg-panel p-5 ring-1 ring-black/[0.04] transition-[transform,box-shadow] duration-300 hover:-translate-y-0.5 hover:shadow-pop dark:ring-white/[0.06]">
+                <div className="group relative flex h-full flex-col rounded-2xl bg-panel p-5 ring-1 ring-black/[0.04] transition-[transform,box-shadow] duration-300 hover:-translate-y-0.5 hover:shadow-float dark:ring-white/[0.06]">
                   <a href={href({ page: 'batch', id: b.id })} className="absolute inset-0 rounded-2xl" aria-label={`Open ${b.name}`} />
                   <div className="flex items-start justify-between gap-2">
                     <Badge tone={b.course === 'CA Foundation' ? 'pop' : b.course === 'CA Inter' ? 'ink' : 'neutral'}>{b.course}</Badge>
                     <DropdownMenu>
                       <DropdownTrigger className={btn('ghost', 'icon', 'relative z-10 size-8')} aria-label={`Actions for ${b.name}`}><MoreHorizontal /></DropdownTrigger>
                       <DropdownContent>
+                        <DropdownItem onSelect={() => open('batch', b.id)}><Pencil /> Edit</DropdownItem>
                         <DropdownItem onSelect={() => open('student', b.id)}><UserPlus /> Add students</DropdownItem>
                         {b.status === 'active'
                           ? <DropdownItem onSelect={() => { updateBatch(b.id, { status: 'archived' }); toast('Batch archived'); }}><Archive /> Archive</DropdownItem>
@@ -97,7 +98,7 @@ export function BatchDetail({ id }: { id: string }) {
 
   return (
     <Page crumbs={[{ label: 'Academics', href: href({ page: 'academics' }) }, { label: 'Batches', href: href({ page: 'batches' }) }, { label: b.name }]}
-      actions={<><Button onClick={() => open('student', b.id)}><UserPlus /> Add students</Button></>}>
+      actions={<><Button onClick={() => open('batch', b.id)}><Pencil /> Edit</Button><Button onClick={() => open('student', b.id)}><UserPlus /> Add students</Button></>}>
       <div className="mb-6 flex flex-wrap items-end justify-between gap-4">
         <div><div className="mb-2 flex gap-2"><Badge tone="ink">{b.course}</Badge><Badge tone={b.status === 'active' ? 'pop' : 'neutral'}>{b.status === 'active' ? 'Active' : 'Archived'}</Badge></div>
           <h1 className="text-[28px] font-bold tracking-[-0.03em]">{b.name}</h1><p className="text-sm text-muted">{b.schedule || 'No schedule'} · since {fmtDate(b.startDate)}</p></div>
@@ -105,7 +106,7 @@ export function BatchDetail({ id }: { id: string }) {
       <div className="mb-5 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {[['Students', roster.length, <Users key="u" className="size-4" />], ['Faculty', fac.length, <Users key="f" className="size-4" />], ['Average score', `${avg}%`, <Ring key="r" value={avg} size={40} stroke={4} />], ['Fees fully paid', `${paid}/${roster.length}`, <Ring key="p" value={roster.length ? (paid / roster.length) * 100 : 0} size={40} stroke={4} tone="pop" />]].map(([l, v, ic], i) => (
           <motion.div key={l as string} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.05 }} className="flex items-center justify-between rounded-2xl bg-panel p-5 ring-1 ring-black/[0.04] dark:ring-white/[0.06]">
-            <div><div className="text-xs text-muted">{l}</div><div className="tnum mt-1 text-2xl font-bold tracking-tight">{v}</div></div>{ic}
+            <div><div className="text-xs text-muted">{l}</div><div className="tnum mt-1 text-2xl font-bold leading-tight tracking-tight">{v}</div></div>{ic}
           </motion.div>
         ))}
       </div>
@@ -123,11 +124,12 @@ export function BatchDetail({ id }: { id: string }) {
           ) : <EmptyState icon={Users} title="No students in this batch" action={<Button variant="primary" onClick={() => open('student', b.id)}><UserPlus /> Add students</Button>} />)}
           {tab === 'courses' && (
             <div className="p-5">{course ? (
+              <div className="space-y-3"><Button size="sm" onClick={() => open('batch', b.id)}><Pencil /> Change course</Button>
               <a href={href({ page: 'learning' })} className="flex items-center gap-4 rounded-2xl bg-subtle p-4 transition hover:bg-hover">
                 <span className="grid size-11 place-items-center rounded-full bg-panel"><BookOpen className="size-5" /></span>
                 <span className="flex-1"><span className="block font-bold">{course.name}</span><span className="text-xs text-muted">{course.subjects} subjects · {course.materials} materials</span></span>
                 <ArrowUpRight className="size-4" />
-              </a>) : <p className="text-sm text-muted">No course assigned. Courses are set up in Learning (next phase).</p>}
+              </a></div>) : <p className="text-sm text-muted">No course assigned. Courses are set up in Learning (next phase).</p>}
             </div>
           )}
           {tab === 'faculty' && (

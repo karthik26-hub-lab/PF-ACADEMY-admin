@@ -22,7 +22,7 @@ export function HatchedBars({ data, height = 180, format = (v: number) => String
               <div className="hatch absolute inset-x-0 bottom-0 rounded-xl" style={{ height: `${ghostH}%` }} />
               <motion.div className={cn('absolute inset-x-0 bottom-0 rounded-xl transition-colors duration-200', on ? 'bg-fg' : 'bg-fg/90 dark:bg-fg/80')}
                 initial={{ height: 0 }} animate={{ height: `${h}%` }} transition={{ duration: 0.8, delay: i * 0.05, ease }}>
-                <span className={cn('absolute -top-7 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-full bg-panel px-2 py-0.5 text-2xs font-semibold shadow-pop transition-opacity duration-200', on ? 'opacity-100' : 'opacity-0')}>{format(d.value)}</span>
+                <span className={cn('absolute -top-7 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-full bg-panel px-2 py-0.5 text-2xs font-semibold shadow-float transition-opacity duration-200', on ? 'opacity-100' : 'opacity-0')}>{format(d.value)}</span>
               </motion.div>
             </div>
             <span className="truncate text-2xs text-muted">{d.label}</span>

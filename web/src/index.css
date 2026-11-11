@@ -23,6 +23,8 @@
     --pop-fg: 90 60% 14%;
     --coral: 4 90% 66%;
     --coral-fg: 0 0% 100%;
+    --sun: 48 100% 58%;
+    --sun-fg: 40 80% 12%;
     --good: 145 55% 32%;
     --good-soft: 85 80% 90%;
     --warn: 32 92% 38%;
@@ -49,6 +51,8 @@
     --pop-fg: 90 60% 12%;
     --coral: 4 85% 66%;
     --coral-fg: 0 0% 100%;
+    --sun: 48 100% 58%;
+    --sun-fg: 40 80% 12%;
     --good: 140 55% 58%;
     --good-soft: 140 30% 14%;
     --warn: 38 92% 60%;
@@ -66,6 +70,8 @@
   body {
     font-variant-numeric: tabular-nums;
     @apply bg-bg text-fg font-sans text-sm antialiased;
+    /* Unitless, so large text set with text-[34px] etc. gets a matching line height instead of inheriting a fixed 20px. */
+    line-height: 1.45;
   }
   * { @apply border-border; }
   ::selection { background: hsl(var(--pop) / 0.6); }
@@ -85,3 +91,52 @@
   /* Diagonal hatching used for "remaining" or comparison bars, as in the reference design. */
   .hatch { background-image: repeating-linear-gradient(135deg, hsl(var(--border-strong)) 0 1.5px, transparent 1.5px 7px); background-color: hsl(var(--subtle)); }
 }
+
+/* ---------- Sign-in background tiles: a self-running loop, transform and opacity only ---------- */
+.tile-sq { border-radius: 26px; }
+.tile-circle { border-radius: 44px; }
+.tile-leaf { border-radius: 44px 44px 44px 8px; }
+.tile-leaf2 { border-radius: 8px 44px 44px 44px; }
+.tile-swell { animation: tile-swell 10s cubic-bezier(0.45, 0, 0.55, 1) infinite; will-change: transform; }
+.tile-shape { will-change: transform; }
+.tile-leaf, .tile-leaf2 { animation: tile-turn 16s cubic-bezier(0.65, 0, 0.35, 1) infinite; }
+.tile-sq, .tile-circle { animation: tile-breathe 9s cubic-bezier(0.45, 0, 0.55, 1) infinite; }
+.tile-glow { border-radius: inherit; opacity: 0; animation: tile-glow 10s cubic-bezier(0.45, 0, 0.55, 1) infinite; will-change: opacity; }
+/* A quarter turn, a rest, and so on: the pointed corner travels round, so the leaf seems to reshape. */
+@keyframes tile-turn {
+  0%, 18% { transform: rotate(0deg); }
+  25%, 43% { transform: rotate(90deg); }
+  50%, 68% { transform: rotate(180deg); }
+  75%, 93% { transform: rotate(270deg); }
+  100% { transform: rotate(360deg); }
+}
+@keyframes tile-breathe { 0%, 100% { transform: scale(1); } 50% { transform: scale(0.9); } }
+@keyframes tile-swell { 0%, 24%, 100% { transform: scale(1); } 12% { transform: scale(1.08); } }
+@keyframes tile-glow { 0%, 24%, 100% { opacity: 0; } 11% { opacity: 0.85; } }
+@media (prefers-reduced-motion: reduce) {
+  .tile-swell, .tile-leaf, .tile-leaf2, .tile-sq, .tile-circle, .tile-glow { animation: none; }
+}
+
+/* ---------- Calendar tones: soft tint, readable ink and a bright bar per entry type, light and dark ---------- */
+.tone-class    { --h: 212; --s: 85%; }
+.tone-exam     { --h: 262; --s: 75%; }
+.tone-deadline { --h: 6;   --s: 85%; }
+.tone-holiday  { --h: 84;  --s: 70%; }
+.tone-event    { --h: 172; --s: 60%; }
+.tone-task     { --h: 30;  --s: 90%; }
+.tone-revision { --h: 84;  --s: 70%; }
+.tone-buffer   { --h: 330; --s: 80%; } /* rose: far from Task (orange) and Revision (lime) */
+.tone-soft  { background-color: hsl(var(--h) var(--s) 95%); color: hsl(var(--h) 45% 26%); }
+.tone-tint  { background-color: hsl(var(--h) var(--s) 97.5%); }
+.tone-ink   { color: hsl(var(--h) 50% 34%); }
+.tone-bar   { background-color: hsl(var(--h) 65% 55%); }
+.tone-line  { box-shadow: inset 0 0 0 1px hsl(var(--h) 55% 55% / 0.35); }
+.dark .tone-soft { background-color: hsl(var(--h) 28% 17%); color: hsl(var(--h) 70% 82%); }
+.dark .tone-tint { background-color: hsl(var(--h) 20% 12%); }
+.dark .tone-ink  { color: hsl(var(--h) 70% 76%); }
+.dark .tone-bar  { background-color: hsl(var(--h) 60% 62%); }
+.dark .tone-line { box-shadow: inset 0 0 0 1px hsl(var(--h) 50% 60% / 0.3); }
+
+/* Buffer (catch-up) days also get faint diagonal stripes, so they read as "no lessons" at a glance. */
+.tone-buffer.tone-soft { background-image: repeating-linear-gradient(135deg, transparent 0 7px, hsl(330 70% 82% / 0.55) 7px 9px); }
+.dark .tone-buffer.tone-soft { background-image: repeating-linear-gradient(135deg, transparent 0 7px, hsl(330 35% 32% / 0.5) 7px 9px); }

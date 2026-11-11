@@ -1,10 +1,10 @@
 import { motion } from 'framer-motion';
-import { KeyRound, Mail, MoreHorizontal, Phone, Trash2, User } from 'lucide-react';
+import { KeyRound, Mail, MoreHorizontal, Pencil, Phone, Trash2, User } from 'lucide-react';
 import { useState } from 'react';
 import { toast } from 'sonner';
 import { HatchedBars, Ring } from '../components/charts';
 import { Page } from '../components/layout/Page';
-import { Avatar, Badge, Button, Card, CardHeader, Dialog, DropdownContent, DropdownItem, DropdownMenu, DropdownSeparator, DropdownTrigger, EmptyState, Select, btn } from '../components/ui';
+import { Avatar, Badge, Button, Card, CardHeader, Dialog, DropdownContent, DropdownItem, DropdownMenu, DropdownSeparator, DropdownTrigger, EmptyState, Field, Input, Select, btn } from '../components/ui';
 import { href, navigate } from '../lib/router';
 import { tempPassword, useStore, type FeeStatus, type StudentStatus } from '../lib/store';
 import { fmtDate } from '../lib/utils';
@@ -14,6 +14,7 @@ export function StudentDetail({ id }: { id: string }) {
   const { students, batches, exams, deleteStudent, updateStudent } = useStore();
   const [pw, setPw] = useState<string | null>(null);
   const [confirm, setConfirm] = useState(false);
+  const [edit, setEdit] = useState<{ name: string; roll: string; phone: string; email: string } | null>(null);
   const s = students.find((x) => x.id === id);
   if (!s) {
     return <Page crumbs={[{ label: 'Students', href: href({ page: 'students' }) }, { label: 'Not found' }]}>
@@ -23,11 +24,13 @@ export function StudentDetail({ id }: { id: string }) {
   const b = batches.find((x) => x.id === s.batchId);
   const assigned = exams.filter((e) => e.batchIds.includes(s.batchId) && !e.draft);
   const labels = s.trend.map((_, i) => `T${i + 1}`);
+  const rollTaken = edit && students.find((x) => x.id !== s.id && x.roll.toLowerCase() === edit.roll.trim().toLowerCase());
   const batchAvg = (() => { const r = students.filter((x) => x.batchId === s.batchId && x.avgScore != null); return r.length ? Math.round(r.reduce((a, x) => a + (x.avgScore ?? 0), 0) / r.length) : 0; })();
 
   return (
     <Page crumbs={[{ label: 'Academics', href: href({ page: 'academics' }) }, { label: 'Students', href: href({ page: 'students' }) }, { label: s.name }]}
-      actions={
+      actions={<>
+        <Button onClick={() => setEdit({ name: s.name, roll: s.roll, phone: s.phone, email: s.email })}><Pencil /> Edit details</Button>
         <DropdownMenu>
           <DropdownTrigger className={btn('secondary', 'icon')} aria-label="More actions"><MoreHorizontal /></DropdownTrigger>
           <DropdownContent>
@@ -36,7 +39,7 @@ export function StudentDetail({ id }: { id: string }) {
             <DropdownItem danger onSelect={() => setConfirm(true)}><Trash2 /> Remove student</DropdownItem>
           </DropdownContent>
         </DropdownMenu>
-      }>
+      </>}>
       <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="mb-5 flex flex-wrap items-center gap-5 rounded-2xl bg-panel p-6 ring-1 ring-black/[0.04] dark:ring-white/[0.06]">
         <Avatar name={s.name} size="lg" className="size-16 text-xl" />
         <div className="min-w-0 flex-1">
@@ -72,6 +75,18 @@ export function StudentDetail({ id }: { id: string }) {
         </Card>
       </div>
 
+      {edit && (
+        <Dialog open onOpenChange={(v) => !v && setEdit(null)} title="Edit details" desc="Changes apply everywhere this student appears."
+          footer={<><Button onClick={() => setEdit(null)}>Cancel</Button><Button variant="primary" disabled={!edit.name.trim() || !edit.roll.trim() || !!rollTaken} onClick={() => { updateStudent(s.id, { ...edit, name: edit.name.trim(), roll: edit.roll.trim() }); toast.success('Details saved'); setEdit(null); }}>Save</Button></>}>
+          <div className="grid gap-4 pb-2 sm:grid-cols-2">
+            {(['name', 'roll', 'phone', 'email'] as const).map((k) => (
+              <Field key={k} label={{ name: 'Full name', roll: 'Roll number', phone: 'Phone', email: 'Email' }[k]} hint={k === 'roll' && rollTaken ? `Already used by ${rollTaken.name}.` : undefined}>
+                <Input type={k === 'email' ? 'email' : 'text'} value={edit[k]} onChange={(e) => setEdit({ ...edit, [k]: e.target.value })} />
+              </Field>
+            ))}
+          </div>
+        </Dialog>
+      )}
       <Dialog open={!!pw} onOpenChange={(v) => !v && setPw(null)} title="New temporary password" desc={`Share it with ${s.name}. They’ll choose their own password on next sign-in.`}
         footer={<Button variant="primary" onClick={() => setPw(null)}>Done</Button>}>
         <div className="rounded-2xl bg-subtle p-5 text-center font-mono text-xl tracking-wider">{pw}</div>

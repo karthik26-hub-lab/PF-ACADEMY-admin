@@ -4,13 +4,15 @@ import QRCode from 'qrcode';
 import readXlsxFile from 'read-excel-file';
 import { useEffect, useMemo, useState, type FormEvent } from 'react';
 import { toast } from 'sonner';
-import { COURSES, SUBJECTS, useStore, type Course, type EventType, type Role, type Student } from '../lib/store';
+import { COURSES, SUBJECTS, useStore, type Course, type Role, type Student } from '../lib/store';
+import { EventDialog, RecordedDialog } from './CalendarDialogs';
+import { CalendarImportDialog } from './CalendarImport';
 import { useUI } from '../lib/ui-state';
 import { cn } from '../lib/utils';
 import { Badge, Button, Dialog, Field, Input, Progress, Segmented, Select, Skeleton } from './ui';
 
 export function Dialogs() {
-  return (<><BatchDialog /><AddStudentsDialog /><InviteDialog /><EventDialog /></>);
+  return (<><BatchDialog /><AddStudentsDialog /><InviteDialog /><EventDialog /><RecordedDialog /><CalendarImportDialog /></>);
 }
 
 function useDialog(...names: string[]) {
@@ -21,13 +23,22 @@ function useDialog(...names: string[]) {
 
 function BatchDialog() {
   const d = useDialog('batch');
-  const { addBatch, members } = useStore();
+  const { addBatch, updateBatch, batches, members } = useStore();
+  const editing = batches.find((b) => b.id === d.arg);
   const [f, setF] = useState({ name: '', course: 'CA Inter' as Course, facultyId: '', startDate: '', schedule: '' });
-  useEffect(() => { if (d.open) setF({ name: '', course: 'CA Inter', facultyId: '', startDate: new Date().toISOString().slice(0, 10), schedule: '' }); }, [d.open]);
-  const submit = (e: FormEvent) => { e.preventDefault(); if (!f.name.trim()) return; addBatch({ ...f, name: f.name.trim() }); toast.success('Batch created'); d.close(); };
+  useEffect(() => {
+    if (d.open) setF(editing ? { name: editing.name, course: editing.course, facultyId: editing.facultyId, startDate: editing.startDate, schedule: editing.schedule }
+      : { name: '', course: 'CA Inter', facultyId: '', startDate: new Date().toISOString().slice(0, 10), schedule: '' });
+  }, [d.open]); // eslint-disable-line
+  const submit = (e: FormEvent) => {
+    e.preventDefault(); if (!f.name.trim()) return;
+    if (editing) updateBatch(editing.id, { ...f, name: f.name.trim(), facultyIds: f.facultyId && !editing.facultyIds.includes(f.facultyId) ? [f.facultyId, ...editing.facultyIds] : editing.facultyIds });
+    else addBatch({ ...f, name: f.name.trim() });
+    toast.success(editing ? 'Batch updated' : 'Batch created'); d.close();
+  };
   return (
-    <Dialog open={d.open} onOpenChange={d.onOpenChange} title="New batch" desc="Students belong to a batch. Courses, faculty and exams are given to batches."
-      footer={<><Button onClick={d.close}>Cancel</Button><Button variant="primary" type="submit" form="batch-form" disabled={!f.name.trim()}>Create batch</Button></>}>
+    <Dialog open={d.open} onOpenChange={d.onOpenChange} title={editing ? 'Edit batch' : 'New batch'} desc="Students belong to a batch. Courses, faculty and exams are given to batches."
+      footer={<><Button onClick={d.close}>Cancel</Button><Button variant="primary" type="submit" form="batch-form" disabled={!f.name.trim()}>{editing ? 'Save' : 'Create batch'}</Button></>}>
       <form id="batch-form" onSubmit={submit} className="grid gap-4 sm:grid-cols-2">
         <Field label="Name" htmlFor="nb-name" className="sm:col-span-2"><Input id="nb-name" autoFocus value={f.name} onChange={(e) => setF({ ...f, name: e.target.value })} placeholder="CA Inter · May 2027 · Batch A" /></Field>
         <Field label="Course" htmlFor="nb-course"><Select id="nb-course" value={f.course} onChange={(e) => setF({ ...f, course: e.target.value as Course })}>{COURSES.map((c) => <option key={c}>{c}</option>)}</Select></Field>
@@ -212,7 +223,7 @@ function QrJoin({ batchId }: { batchId: string }) {
   const r = 22, c = 2 * Math.PI * r;
   return (
     <div className="grid items-center gap-6 sm:grid-cols-[auto_minmax(0,1fr)]">
-      <div className="relative mx-auto rounded-3xl bg-white p-4 shadow-pop">
+      <div className="relative mx-auto rounded-3xl bg-white p-4 shadow-float">
         {svg ? <motion.div key={token} initial={{ opacity: 0, scale: 0.96 }} animate={{ opacity: 1, scale: 1 }} transition={{ duration: 0.3 }} className="size-48 [&_svg]:size-full" dangerouslySetInnerHTML={{ __html: svg }} /> : <Skeleton className="size-48" />}
       </div>
       <div className="space-y-4">
@@ -284,23 +295,3 @@ function InviteDialog() {
   );
 }
 
-const EVENT_TYPES: [EventType, string][] = [['class', 'Class'], ['exam', 'Exam'], ['deadline', 'Deadline'], ['holiday', 'Holiday'], ['event', 'Event']];
-function EventDialog() {
-  const d = useDialog('event');
-  const { addEvent, batches } = useStore();
-  const [f, setF] = useState({ title: '', date: '', time: '', type: 'class' as EventType, batchId: '' });
-  useEffect(() => { if (d.open) setF({ title: '', date: d.arg || new Date().toISOString().slice(0, 10), time: '', type: 'class', batchId: '' }); }, [d.open, d.arg]);
-  const submit = (e: FormEvent) => { e.preventDefault(); if (!f.title.trim() || !f.date) return; addEvent({ ...f, title: f.title.trim(), batchId: f.batchId || undefined, time: f.time || undefined }); toast.success('Added to the calendar'); d.close(); };
-  return (
-    <Dialog open={d.open} onOpenChange={d.onOpenChange} title="Add to calendar"
-      footer={<><Button onClick={d.close}>Cancel</Button><Button variant="primary" type="submit" form="event-form" disabled={!f.title.trim() || !f.date}>Add</Button></>}>
-      <form id="event-form" onSubmit={submit} className="grid gap-4 sm:grid-cols-2">
-        <Field label="Title" htmlFor="ev-title" className="sm:col-span-2"><Input id="ev-title" autoFocus value={f.title} onChange={(e) => setF({ ...f, title: e.target.value })} placeholder="Taxation revision class" /></Field>
-        <Field label="Type" htmlFor="ev-type"><Select id="ev-type" value={f.type} onChange={(e) => setF({ ...f, type: e.target.value as EventType })}>{EVENT_TYPES.map(([v, l]) => <option key={v} value={v}>{l}</option>)}</Select></Field>
-        <Field label="Batch" htmlFor="ev-batch" optional><Select id="ev-batch" value={f.batchId} onChange={(e) => setF({ ...f, batchId: e.target.value })}><option value="">Whole academy</option>{batches.filter((b) => b.status === 'active').map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}</Select></Field>
-        <Field label="Date" htmlFor="ev-date"><Input id="ev-date" type="date" value={f.date} onChange={(e) => setF({ ...f, date: e.target.value })} /></Field>
-        <Field label="Time" htmlFor="ev-time" optional><Input id="ev-time" type="time" value={f.time} onChange={(e) => setF({ ...f, time: e.target.value })} /></Field>
-      </form>
-    </Dialog>
-  );
-}
