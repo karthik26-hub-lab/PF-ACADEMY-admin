@@ -7,9 +7,10 @@ import { btn } from '../ui';
 
 export type Crumb = { label: string; href?: string };
 
-export function Page({ crumbs, actions, children, width = 'default' }: { crumbs: Crumb[]; actions?: ReactNode; children: ReactNode; width?: 'default' | 'narrow' | 'wide' }) {
+/** `screen` names the page for its entrance animation; tabs of one page share it, so switching tabs doesn't replay the slide-in. */
+export function Page({ crumbs, actions, children, width = 'default', screen }: { crumbs: Crumb[]; actions?: ReactNode; children: ReactNode; width?: 'default' | 'narrow' | 'wide'; screen?: string }) {
   const showCrumbs = crumbs.length > 1;
-  const key = location.hash || '#dashboard';
+  const key = screen ?? (location.hash || '#dashboard');
   // Decided once per route: the first visit animates, later visits appear instantly.
   const first = useMemo(() => isFirstVisit(key), [key]);
   useEffect(() => { markVisited(key); }, [key]);

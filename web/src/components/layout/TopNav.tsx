@@ -12,7 +12,7 @@ const NAV: { id: Section; label: string; route: Route; icon: typeof LayoutGrid }
   { id: 'academics', label: 'Academics', route: { page: 'academics' }, icon: GraduationCap },
   { id: 'learning', label: 'Learning', route: { page: 'learning' }, icon: BookOpen },
   { id: 'assessments', label: 'Assessments', route: { page: 'assessments' }, icon: ClipboardList },
-  { id: 'store', label: 'Store', route: { page: 'store', tab: 'pf' }, icon: ShoppingBag },
+  { id: 'store', label: 'Store', route: { page: 'store', tab: 'catalogue' }, icon: ShoppingBag },
   { id: 'reports', label: 'Reports', route: { page: 'reports' }, icon: Users },
 ];
 

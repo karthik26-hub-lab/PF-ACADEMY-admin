@@ -233,7 +233,7 @@ export function Students({ tab }: { tab: 'all' | 'requests' }) {
   const card = 'rounded-2xl bg-panel p-5 ring-1 ring-black/[0.04] dark:ring-white/[0.06]';
 
   return (
-    <Page crumbs={[{ label: 'Academics', href: href({ page: 'academics' }) }, { label: 'Students' }]}
+    <Page screen="students" crumbs={[{ label: 'Academics', href: href({ page: 'academics' }) }, { label: 'Students' }]}
       actions={<><Button onClick={() => open('import')}><Upload /> Import</Button><Button variant="primary" onClick={() => open('student')}><UserPlus /> Add students</Button></>}>
       <div className="mb-6"><h1 className="text-[28px] font-bold tracking-[-0.03em]">Students</h1><p className="text-sm text-muted">One directory for the whole academy. Each student has a single record, shared with their batch.</p></div>
 

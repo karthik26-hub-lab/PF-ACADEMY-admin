@@ -47,10 +47,10 @@ export function Overview() {
   const desc = s.exams.filter((e) => e.kind === 'descriptive').length;
   const activeBatches = s.batches.filter((b) => b.status === 'active');
   const shop = useShop();
-  const sales = salesSummary(shop.orders, shop.mine);
+  const sales = salesSummary(shop.sales, shop.mine);
   const totalRevenue = sales.total;
   // Last 30 days against the 30 before, so a half-finished month never reads as a drop.
-  const inWindow = (from: number, to: number) => shop.orders.filter((o) => o.at > Date.now() - to * 864e5 && o.at <= Date.now() - from * 864e5).reduce((a, o) => a + o.amount, 0);
+  const inWindow = (from: number, to: number) => shop.sales.filter((o) => o.status === 'completed' && o.at > Date.now() - to * 864e5 && o.at <= Date.now() - from * 864e5).reduce((a, o) => a + o.subtotal, 0);
   const prevSales = inWindow(30, 60), salesGrowth = prevSales ? Math.round(((inWindow(0, 30) - prevSales) / prevSales) * 100) : 0;
   const months = Array.from({ length: 6 }, (_, i) => { const d = new Date(); d.setMonth(d.getMonth() - 5 + i); return d.toLocaleDateString('en-IN', { month: 'short' }); });
   const monthly = sales.monthly;
@@ -140,7 +140,7 @@ export function Overview() {
             <div className="mt-8"><HatchedBars data={monthly.map((v, i) => ({ label: months[i], value: v }))} height={170} format={(v) => inrShort(v)} highlight={monthly.length - 1} /></div>
             <div className="mt-5 grid grid-cols-3 gap-2">
               {[['E-books', sales.kinds.ebooks], ['Tests', sales.kinds.tests], ['Question banks', sales.kinds.banks]].map(([l, v]) => (
-                <button key={l as string} onClick={() => navigate({ page: 'store', tab: 'mine' })} className="group rounded-xl bg-subtle p-3 text-left transition hover:bg-hover">
+                <button key={l as string} onClick={() => navigate({ page: 'store', tab: 'sales' })} className="group rounded-xl bg-subtle p-3 text-left transition hover:bg-hover">
                   <div className="text-2xs text-muted">{l}</div><div className="tnum mt-0.5 text-sm font-bold" title={inr(v as number)}>{inrShort(v as number)}</div>
                   <div className="mt-1 flex items-center gap-1 text-2xs font-semibold text-muted group-hover:text-fg">Open store <ArrowRight className="size-3" /></div>
                 </button>

@@ -55,7 +55,7 @@ export function CommandMenu() {
                 {item('academic calendar schedule', FileText, 'Academic calendar', () => go({ page: 'calendar' }))}
                 {item('learning courses materials', FileText, 'Learning', () => go({ page: 'learning' }))}
                 {item('assessments tests exams', ClipboardCheck, 'Assessments', () => go({ page: 'assessments' }))}
-                {item('store ebooks licences seats', BarChart3, 'Store', () => go({ page: 'store', tab: 'pf' }))}
+                {item('store ebooks licences seats', BarChart3, 'Store', () => go({ page: 'store', tab: 'catalogue' }))}
                 {item('reports', BarChart3, 'Reports', () => go({ page: 'reports' }))}
                 {item('settings profile', Settings, 'Settings', () => go({ page: 'settings', tab: 'general' }))}
               </Command.Group>

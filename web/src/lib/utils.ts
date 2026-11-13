@@ -46,13 +46,17 @@ export const inrShort = (n: number) => `₹${compactIN(n)}`;
 type Saver = { save: (r: { filename: string; data: Blob }) => Promise<unknown> } | null;
 type Host = { use?: (name: string) => Promise<unknown> };
 
+/** Saves rows as a CSV file that opens cleanly in Excel. */
+export function downloadCSV(name: string, rows: (string | number | null | undefined)[][]): Promise<boolean> {
+  const esc = (v: string | number | null | undefined) => { const s = v == null ? '' : String(v); return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s; };
+  return downloadBlob(name, new Blob(['﻿' + rows.map((r) => r.map(esc).join(',')).join('\r\n')], { type: 'text/csv;charset=utf-8' }));
+}
+
 /**
- * Saves rows as a CSV file that opens cleanly in Excel. Resolves true when the file was handed over.
+ * Hands a file to the viewer. Resolves true when it was handed over.
  * Inside the shared claude.ai link, plain downloads are blocked, so the viewer's own save prompt is used there.
  */
-export async function downloadCSV(name: string, rows: (string | number | null | undefined)[][]): Promise<boolean> {
-  const esc = (v: string | number | null | undefined) => { const s = v == null ? '' : String(v); return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s; };
-  const blob = new Blob(['﻿' + rows.map((r) => r.map(esc).join(',')).join('\r\n')], { type: 'text/csv;charset=utf-8' });
+export async function downloadBlob(name: string, blob: Blob): Promise<boolean> {
   const host = (window as unknown as { claude?: Host }).claude;
   if (host?.use) {
     const downloads = (await host.use('downloads').catch(() => null)) as Saver;

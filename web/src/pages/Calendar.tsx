@@ -3,7 +3,7 @@ import { CalendarClock, CalendarPlus, ChevronLeft, ChevronRight, Clapperboard, F
 import { useEffect, useMemo, useState, type ElementType, type ReactNode } from 'react';
 import { toast } from 'sonner';
 import { Page } from '../components/layout/Page';
-import { Button, DropdownContent, DropdownItem, DropdownMenu, DropdownTrigger, EmptyState, Select, Tip, spring } from '../components/ui';
+import { Button, DropdownContent, DropdownItem, DropdownMenu, DropdownTrigger, EmptyState, Glide, Select, Tip } from '../components/ui';
 import { DELIVERY, LIVE_TYPE, LIVE_TYPES, REC_TYPE, REC_TYPES, deadlineCourse, inLiveView, matchesBatch, timeRange } from '../lib/calendar';
 import { href } from '../lib/router';
 import { COURSES, useStore, type CalendarEvent, type Course, type Delivery, type EventType, type RecordedDay, type RecordedType } from '../lib/store';
@@ -68,13 +68,13 @@ export function Calendar() {
 // ---------- Shared pieces ----------
 function ModeSwitch<T extends string>({ value, onChange, items }: { value: T; onChange: (v: T) => void; items: { value: T; label: string; sub: string; icon: ElementType }[] }) {
   return (
-    <div role="tablist" aria-label="Calendar" className="mb-5 grid grid-cols-3 gap-1 rounded-[22px] bg-subtle p-1 ring-1 ring-inset ring-border sm:inline-grid sm:min-w-[560px]">
+    <div role="tablist" aria-label="Calendar" className="relative mb-5 grid grid-cols-3 gap-1 rounded-[22px] bg-subtle p-1 ring-1 ring-inset ring-border sm:inline-grid sm:min-w-[560px]">
+      <Glide value={value} className="rounded-[18px] bg-panel shadow-[0_1px_2px_rgba(0,0,0,0.06),0_6px_16px_-8px_rgba(0,0,0,0.18)] ring-1 ring-black/[0.04] dark:ring-white/[0.06]" />
       {items.map((it) => {
         const on = value === it.value;
         return (
           <button key={it.value} role="tab" aria-selected={on} onClick={() => onChange(it.value)}
             className={cn('relative flex flex-col items-center gap-1.5 rounded-[18px] px-2 py-2.5 text-center transition-colors duration-200 sm:flex-row sm:gap-2.5 sm:px-3 sm:text-left', on ? 'text-fg' : 'text-muted hover:text-fg')}>
-            {on && <motion.span layoutId="cal-mode" transition={spring} className="absolute inset-0 rounded-[18px] bg-panel shadow-[0_1px_2px_rgba(0,0,0,0.06),0_6px_16px_-8px_rgba(0,0,0,0.18)] ring-1 ring-black/[0.04] dark:ring-white/[0.06]" />}
             <span className={cn('relative grid size-9 shrink-0 place-items-center rounded-full transition-colors duration-200', on ? 'bg-pop text-pop-fg' : 'bg-panel ring-1 ring-border')}><it.icon className="size-4" /></span>
             <span className="relative min-w-0"><span className="block truncate text-xs font-semibold sm:text-sm">{it.label}</span><span className="hidden truncate text-2xs text-muted sm:block">{it.sub}</span></span>
           </button>
@@ -172,10 +172,11 @@ function LiveCalendar({ view, month, setMonth, selected, setSelected, onAdd, onI
       <section className={cn(panel, 'min-w-0 p-4 sm:p-5')}>
         <div className="flex flex-wrap items-center gap-2">
           <h2 className="mr-auto text-xl font-bold tracking-tight">{heading}</h2>
-          <div className="flex items-center rounded-full bg-subtle p-1 ring-1 ring-inset ring-border">
+          <div role="tablist" className="relative flex items-center rounded-full bg-subtle p-1 ring-1 ring-inset ring-border">
+            <Glide value={mode} className="rounded-full bg-panel shadow-xs ring-1 ring-black/[0.05] dark:ring-white/[0.08]" />
             {(['month', 'week'] as const).map((m) => (
-              <button key={m} onClick={() => switchMode(m)} className={cn('relative h-8 rounded-full px-3.5 text-xs font-semibold capitalize transition-colors', mode === m ? 'text-fg' : 'text-muted hover:text-fg')}>
-                {mode === m && <motion.span layoutId="cal-span" transition={spring} className="absolute inset-0 rounded-full bg-panel shadow-xs ring-1 ring-black/[0.05] dark:ring-white/[0.08]" />}<span className="relative">{m}</span>
+              <button key={m} role="tab" aria-selected={mode === m} onClick={() => switchMode(m)} className={cn('relative h-8 rounded-full px-3.5 text-xs font-semibold capitalize transition-colors', mode === m ? 'text-fg' : 'text-muted hover:text-fg')}>
+                <span className="relative">{m}</span>
               </button>
             ))}
           </div>
@@ -443,10 +444,11 @@ function RecordedPlan({ course, setCourse, onAdd, onImport }: { course: Course; 
             <h2 className="text-xl font-bold tracking-tight">{course} <span className="text-faint">recorded plan</span></h2>
             <p className="text-xs text-muted">{lastDay} days · {weeks} weeks · {videos} videos</p>
           </div>
-          <div className="flex items-center rounded-full bg-subtle p-1 ring-1 ring-inset ring-border">
+          <div role="tablist" className="relative flex items-center rounded-full bg-subtle p-1 ring-1 ring-inset ring-border">
+            <Glide value={course} className="rounded-full bg-panel shadow-xs ring-1 ring-black/[0.05] dark:ring-white/[0.08]" />
             {COURSES.map((c) => (
-              <button key={c} onClick={() => setCourse(c)} className={cn('relative h-8 rounded-full px-3 text-xs font-semibold transition-colors', course === c ? 'text-fg' : 'text-muted hover:text-fg')}>
-                {course === c && <motion.span layoutId="rec-course" transition={spring} className="absolute inset-0 rounded-full bg-panel shadow-xs ring-1 ring-black/[0.05] dark:ring-white/[0.08]" />}<span className="relative">{c.replace('CA ', '')}</span>
+              <button key={c} role="tab" aria-selected={course === c} onClick={() => setCourse(c)} className={cn('relative h-8 rounded-full px-3 text-xs font-semibold transition-colors', course === c ? 'text-fg' : 'text-muted hover:text-fg')}>
+                <span className="relative">{c.replace('CA ', '')}</span>
               </button>
             ))}
           </div>

@@ -1,124 +1,219 @@
-// Store: Parallax Flow products bought per student seat, plus the academy's own store (a paid add-on).
-// Every business number lives in `rules` so it can be changed from Settings → Store rules.
+// Store, following the client's "Store Map":
+//  · Explore Store — the academy buys Parallax Flow products for a number of students (capacity),
+//    then allocates them in cycles. Each cycle allows `capacity` unique students.
+//  · My Store — the academy sells its own products, bundles and offers to its students (paid add-on).
+// Every business number lives in `rules` (Settings → Store rules).
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { uid, type Course } from './store';
 
-// Same product types as the existing Parallax Flow store (parallax-flow-web/src/features/store/types/catalog.ts).
-export type ProductType = 'revision-notes' | 'visual-notes' | 'mind-maps' | 'question-bank' | 'formula-sheet' | 'mock-test' | 'bundle';
-export const TYPE_LABEL: Record<ProductType, string> = {
-  'revision-notes': 'Ebook', 'visual-notes': 'Visual notes', 'mind-maps': 'Mind maps', 'question-bank': 'Question bank',
-  'formula-sheet': 'Formula sheet', 'mock-test': 'Test series', bundle: 'Bundle',
+// ---------- Types ----------
+export type PfType = 'study' | 'revision' | 'qbank' | 'tests' | 'bundle';
+export const PF_TYPE: Record<PfType, string> = { study: 'Study material', revision: 'Revision material', qbank: 'Question bank', tests: 'Test series', bundle: 'Bundle' };
+export type MyType = 'ebook' | 'tests' | 'qbank' | 'bundle';
+export const MY_TYPE: Record<MyType, string> = { ebook: 'E-book / PDF', tests: 'Test series', qbank: 'Question bank', bundle: 'Bundle' };
+
+export type OrderStatus = 'pending' | 'processing' | 'completed' | 'failed' | 'cancelled' | 'partial-refund' | 'refunded';
+export const ORDER_STATUS: Record<OrderStatus, { label: string; tone: 'neutral' | 'warn' | 'pop' | 'bad' }> = {
+  pending: { label: 'Pending payment', tone: 'warn' }, processing: { label: 'Payment processing', tone: 'warn' }, completed: { label: 'Completed', tone: 'pop' },
+  failed: { label: 'Failed', tone: 'bad' }, cancelled: { label: 'Cancelled', tone: 'neutral' }, 'partial-refund': { label: 'Partially refunded', tone: 'warn' }, refunded: { label: 'Refunded', tone: 'neutral' },
 };
 
-export interface Product { id: string; title: string; type: ProductType; course: Course; subject: string; price: number; about: string; status?: 'draft' | 'live' }
-export interface LogEntry { at: number; studentId: string; action: 'assign' | 'revoke' }
-export interface Licence { id: string; productId: string; seats: number; boughtAt: number; expiresAt: number; assigned: Record<string, number>; log: LogEntry[] }
-export interface Coupon { id: string; code: string; percent: number; used: number; limit: number }
-export interface Order { id: string; productId: string; student: string; amount: number; at: number }
-export interface Rules { seatMonths: number; cooldownDays: number; tiers: { min: number; off: number }[]; payout: 'parallax' | 'academy'; commission: number; addonPrice: number }
+export interface PfProduct { id: string; title: string; type: PfType; course: Course; subject: string; chapters: string[]; about: string; price: number; updatedAt: number; cycles: number; preview: string[] }
+export interface Line { productId: string; qty: number; amount: number }
+export interface Billing { academy: string; gstin: string; address: string; contact: string; email: string; phone: string; method: string }
+export interface Purchase { id: string; at: number; lines: Line[]; subtotal: number; discount: number; gst: number; total: number; status: OrderStatus; method: string; txn: string; billing?: Billing }
+export interface Cycle { n: number; startedAt: number; completedAt?: number; students: string[] }
+export interface LogEntry { at: number; action: 'allocated' | 'revoked'; studentIds: string[] }
+export interface Licence { id: string; productId: string; orderId: string; capacity: number; maxCycles: number; activatedAt: number; expiresAt: number; cycles: Cycle[]; active: Record<string, number>; log: LogEntry[] }
+
+export type ProductStatus = 'published' | 'draft' | 'scheduled' | 'unpublished' | 'archived';
+export interface MyProduct {
+  id: string; title: string; type: MyType; course: Course; subject: string; chapters: string[]; short: string; detail: string; code: string;
+  status: ProductStatus; publishAt?: string; updatedAt: number;
+  content: Record<string, string | boolean>;           // type-specific fields from step 2
+  free: boolean; price: number; discounted?: number; limited: boolean; stock?: number; perStudent?: number; saleFrom?: string; saleTo?: string;
+  who: 'all' | 'batches' | 'courses'; whoIds: string[];
+  items?: string[];                                     // bundles: the products inside
+}
+export interface Offer { id: string; name: string; code: string; auto: boolean; kind: 'percent' | 'fixed'; value: number; products: string[]; minOrder?: number; maxDiscount?: number; limit: number; perStudent: number; from: string; to: string; who: MyProduct['who']; whoIds: string[]; active: boolean; used: number }
+export interface Sale { id: string; at: number; studentId: string; lines: Line[]; subtotal: number; discount: number; gst: number; total: number; status: OrderStatus; method: string; txn: string; refund: number }
+export interface Rules { gst: number; validityMonths: number; cycles: number; payout: 'parallax' | 'academy'; commission: number; addonPrice: number }
 
 const DAY = 86400e3;
-export const DEFAULT_RULES: Rules = {
-  seatMonths: 12, cooldownDays: 30,
-  tiers: [{ min: 100, off: 10 }, { min: 250, off: 20 }, { min: 500, off: 30 }],
-  payout: 'parallax', commission: 15, addonPrice: 2999,
+export const DEFAULT_RULES: Rules = { gst: 18, validityMonths: 12, cycles: 3, payout: 'parallax', commission: 15, addonPrice: 2999 };
+
+// ---------- Helpers ----------
+/** Capacity must be a positive whole number: no decimals, fractions, zero or negatives. */
+export const validCapacity = (raw: string) => /^[1-9]\d*$/.test(raw.trim());
+export const withGst = (subtotal: number, discount: number, rules: Rules) => {
+  const taxable = Math.max(0, subtotal - discount), gst = Math.round((taxable * rules.gst) / 100);
+  return { subtotal, discount, gst, total: taxable + gst };
 };
-
-/** Price for `seats` students after the volume discount that applies. */
-export function seatQuote(price: number, seats: number, rules: Rules, couponOff = 0) {
-  const off = Math.max(0, ...rules.tiers.filter((t) => seats >= t.min).map((t) => t.off));
-  const gross = price * seats;
-  const total = Math.round(gross * (1 - off / 100) * (1 - couponOff / 100));
-  return { off, gross, total };
+export const current = (l: Licence) => l.cycles[l.cycles.length - 1];
+export const licenceStatus = (l: Licence) => (Date.now() > l.expiresAt ? 'Expired' : 'Active');
+/**
+ * What "Allocate" may do right now, so the screen can guide the academy:
+ *  · places left in this cycle → share up to that many new students;
+ *  · cycle full but someone was revoked → the next cycle starts; active students carry over, freed seats become new places;
+ *  · cycle full and every seat taken, or no cycles left → revoke first (or nothing more to share).
+ */
+export function allocState(l: Licence) {
+  const c = current(l), active = Object.keys(l.active).length, freeSeats = l.capacity - active, placesLeft = l.capacity - c.students.length;
+  if (Date.now() > l.expiresAt) return { can: false, limit: 0, note: 'This licence has expired.' };
+  if (placesLeft > 0) return { can: true, limit: placesLeft, note: `Cycle ${c.n} of ${l.maxCycles} · ${placesLeft} ${placesLeft === 1 ? 'place' : 'places'} left in this cycle` };
+  if (c.n >= l.maxCycles) return { can: false, limit: 0, note: `All ${l.maxCycles} cycles are used.` };
+  if (freeSeats === 0) return { can: false, limit: 0, note: `Cycle ${c.n} is full. Revoke access first to share with the next group.` };
+  return { can: true, limit: freeSeats, note: `This starts Cycle ${c.n + 1} of ${l.maxCycles} · ${active} active ${active === 1 ? 'student carries' : 'students carry'} over · ${freeSeats} new ${freeSeats === 1 ? 'place' : 'places'}` };
 }
-/** A seat can be moved once its student has held it for the cooling period. */
-export const movableAt = (assignedAt: number, rules: Rules) => assignedAt + rules.cooldownDays * DAY;
+export const myPrice =(p: MyProduct) => (p.free ? 0 : p.discounted ?? p.price);
 
-const pf = (id: string, title: string, type: ProductType, course: Course, subject: string, price: number, about: string): Product => ({ id, title, type, course, subject, price, about });
-const CATALOG: Product[] = [
-  pf('p1', 'PYQ Bank · Advanced Accounting', 'question-bank', 'CA Inter', 'Accounting', 149, 'Every past paper question since 2015, chapter-wise, with ICAI-style solutions.'),
-  pf('p2', 'Taxation Visual Notes', 'visual-notes', 'CA Inter', 'Taxation', 199, 'Income tax and GST in one-page visuals, updated for the current Finance Act.'),
-  pf('p3', 'Audit Standards Mind Maps', 'mind-maps', 'CA Inter', 'Auditing & Ethics', 99, 'All SAs as mind maps with key requirements and exam keywords.'),
-  pf('p4', 'GST Formula & Rate Sheet', 'formula-sheet', 'CA Final', 'Indirect Tax Laws', 49, 'Rates, time of supply and ITC rules on six printable pages.'),
-  pf('p5', 'Costing Mock Test Series', 'mock-test', 'CA Inter', 'Cost & Management Accounting', 249, 'Eight full-length mocks with step-wise marking.'),
-  pf('p6', 'Financial Reporting Revision Ebook', 'revision-notes', 'CA Final', 'Financial Management', 299, 'Ind AS revision in 180 pages with solved illustrations.'),
-  pf('p7', 'Corporate Law Question Bank', 'question-bank', 'CA Foundation', 'Corporate & Other Laws', 129, '600 MCQs and case questions with explanations.'),
-  pf('p8', 'CA Foundation Complete Bundle', 'bundle', 'CA Foundation', 'All subjects', 499, 'Notes, question banks and mocks for all four papers.'),
+/**
+ * Allocation rule from the Store Map:
+ * - each cycle allows `capacity` unique students; giving access back to someone already in this cycle is free;
+ * - revoking frees the seat but not the unique place;
+ * - when a cycle is full, the next one starts (students still active carry over into it).
+ * Returns the ids that could not be allocated.
+ */
+function allocate(l: Licence, ids: string[], now: number): { licence: Licence; blocked: string[] } {
+  let cycles = [...l.cycles];
+  const active = { ...l.active }, added: string[] = [], blocked: string[] = [];
+  for (const id of ids) {
+    if (active[id]) continue;
+    let c = cycles[cycles.length - 1];
+    if (!c.students.includes(id) && c.students.length >= l.capacity) {
+      // A new cycle needs a free seat (someone revoked) and a cycle left to start.
+      if (cycles.length >= l.maxCycles || Object.keys(active).length >= l.capacity) { blocked.push(id); continue; }
+      cycles = [...cycles.slice(0, -1), { ...c, completedAt: now }, { n: c.n + 1, startedAt: now, students: Object.keys(active) }];
+      c = cycles[cycles.length - 1];
+    }
+    if (!c.students.includes(id)) cycles = [...cycles.slice(0, -1), { ...c, students: [...c.students, id] }];
+    active[id] = now; added.push(id);
+  }
+  const log = added.length ? [{ at: now, action: 'allocated' as const, studentIds: added }, ...l.log] : l.log;
+  return { licence: { ...l, cycles, active, log }, blocked };
+}
+
+// ---------- Sample data ----------
+const ago = (d: number) => Date.now() - d * DAY;
+const pf = (id: string, title: string, type: PfType, course: Course, subject: string, chapters: string[], price: number, about: string, updated: number): PfProduct =>
+  ({ id, title, type, course, subject, chapters, price, about, updatedAt: ago(updated), cycles: 3, preview: [`Sample from ${chapters[0]}`, 'Page 1 of the contents', 'One worked example with solution'] });
+const CATALOG: PfProduct[] = [
+  pf('p1', 'AS 10 Question Bank', 'qbank', 'CA Inter', 'Accounting', ['AS 10 – Property, Plant & Equipment'], 10, 'Every past-paper and RTP question on AS 10, with ICAI-style answers.', 6),
+  pf('p2', 'AS 11 Question Bank', 'qbank', 'CA Inter', 'Accounting', ['AS 11 – Foreign Exchange'], 10, 'Practice questions on foreign exchange transactions.', 12),
+  pf('p3', 'Ignite – Accounts', 'study', 'CA Inter', 'Accounting', ['Partnership', 'Company Accounts', 'Cash Flow Statements'], 10, 'Detailed chapter material for Advanced Accounting.', 3),
+  pf('p4', 'GST Quick Revise', 'revision', 'CA Final', 'Indirect Tax Laws', ['Supply', 'Input Tax Credit', 'Place of Supply'], 8, 'Quick revision notes for the last two weeks before the exam.', 20),
+  pf('p5', 'Audit Test Series', 'tests', 'CA Inter', 'Auditing & Ethics', ['Standards on Auditing', 'Audit Report'], 15, 'Subject-wise tests with model answers and marking.', 9),
+  pf('p6', 'Costing Study Material', 'study', 'CA Inter', 'Cost & Management Accounting', ['Marginal Costing', 'Standard Costing', 'Budgetary Control'], 12, 'Full chapter notes with illustrations.', 30),
+  pf('p7', 'Company Law Question Bank', 'qbank', 'CA Foundation', 'Corporate & Other Laws', ['Share Capital', 'Board Meetings'], 9, 'MCQs and case questions with explanations.', 15),
+  pf('p8', 'Foundation Combo', 'bundle', 'CA Foundation', 'All subjects', ['All papers'], 25, 'Question banks and revision material for all four papers.', 5),
 ];
 
 function sample() {
-  const now = Date.now();
-  const lic = (id: string, productId: string, seats: number, used: number, from: number, daysAgo: number): Licence => {
-    const assigned = Object.fromEntries(Array.from({ length: used }, (_, i) => [`s${from + i}`, now - (daysAgo - (i % 20)) * DAY]));
-    return { id, productId, seats, boughtAt: now - daysAgo * DAY, expiresAt: now + (365 - daysAgo) * DAY, assigned, log: Object.entries(assigned).slice(0, 12).map(([studentId, at]) => ({ at, studentId, action: 'assign' as const })) };
+  const ids = (from: number, n: number) => Array.from({ length: n }, (_, i) => `s${from + i}`);
+  const c1 = ids(1, 100), c2 = ids(101, 70);
+  const lic1: Licence = {
+    id: 'l1', productId: 'p1', orderId: 'PF-P001', capacity: 100, maxCycles: 3, activatedAt: ago(130), expiresAt: ago(130) + 365 * DAY,
+    cycles: [{ n: 1, startedAt: ago(130), completedAt: ago(60), students: c1 }, { n: 2, startedAt: ago(60), students: c2 }],
+    active: Object.fromEntries(c2.map((s, i) => [s, ago(60 - (i % 30))])),
+    log: [{ at: ago(30), action: 'allocated', studentIds: c2.slice(50) }, { at: ago(60), action: 'allocated', studentIds: c2.slice(0, 50) }, { at: ago(61), action: 'revoked', studentIds: c1 }, { at: ago(100), action: 'allocated', studentIds: c1.slice(70) }, { at: ago(130), action: 'allocated', studentIds: c1.slice(0, 70) }],
   };
-  return {
-    licences: [lic('l1', 'p1', 100, 86, 1, 45), lic('l2', 'p2', 50, 50, 200, 12)],
-    mine: [
-      { id: 'm1', title: 'Northstar Taxation Crash Notes', type: 'revision-notes' as const, course: 'CA Inter' as Course, subject: 'Taxation', price: 349, about: '120 pages of last-minute revision.', status: 'live' as const },
-      { id: 'm2', title: 'Accounts Practice Workbook', type: 'question-bank' as const, course: 'CA Inter' as Course, subject: 'Accounting', price: 199, about: '300 practice questions with answers.', status: 'draft' as const },
-      { id: 'm3', title: 'Inter Group 1 Mock Series', type: 'mock-test' as const, course: 'CA Inter' as Course, subject: 'Taxation', price: 599, about: 'Four full mocks with evaluation.', status: 'live' as const },
-      { id: 'm4', title: 'Audit Case Question Bank', type: 'question-bank' as const, course: 'CA Inter' as Course, subject: 'Auditing & Ethics', price: 249, about: '200 case questions with model answers.', status: 'live' as const },
-    ],
-    // About 90 sales over six months, a little busier each month.
-    orders: Array.from({ length: 90 }, (_, i) => {
-      const [productId, amount] = ([['m1', 349], ['m3', 599], ['m4', 249], ['m1', 349]] as const)[i % 4];
-      return { id: `o${i}`, productId, amount, student: ['Aarav Shah', 'Diya Menon', 'Kabir Rao', 'Meera Iyer', 'Rohan Nair', 'Tara Joshi'][i % 6], at: now - Math.floor((1 - Math.sqrt(1 - i / 90)) * 175) * DAY };
-    }),
-    coupons: [{ id: 'c1', code: 'NORTH20', percent: 20, used: 14, limit: 50 }],
+  const c3 = ids(300, 120);
+  const lic2: Licence = { id: 'l2', productId: 'p3', orderId: 'PF-P002', capacity: 300, maxCycles: 3, activatedAt: ago(40), expiresAt: ago(40) + 365 * DAY, cycles: [{ n: 1, startedAt: ago(40), students: c3 }], active: Object.fromEntries(c3.map((s) => [s, ago(40)])), log: [{ at: ago(40), action: 'allocated', studentIds: c3 }] };
+  const order = (id: string, d: number, lines: [string, number][], status: OrderStatus): Purchase => {
+    const ls = lines.map(([productId, qty]) => ({ productId, qty, amount: qty * CATALOG.find((p) => p.id === productId)!.price }));
+    return { id, at: ago(d), lines: ls, ...withGst(ls.reduce((a, l) => a + l.amount, 0), 0, DEFAULT_RULES), status, method: 'UPI', txn: status === 'completed' ? `TXN${id.slice(-3)}84Q` : '' };
   };
+  const purchases = [
+    order('PF-P001', 130, [['p1', 100]], 'completed'), order('PF-P002', 40, [['p3', 300]], 'completed'),
+    order('PF-P003', 150, [['p7', 150]], 'completed'), order('PF-P004', 118, [['p4', 80]], 'completed'), order('PF-P005', 95, [['p8', 120]], 'completed'),
+    order('PF-P006', 70, [['p6', 200]], 'completed'), order('PF-P007', 52, [['p5', 150]], 'completed'), order('PF-P008', 25, [['p2', 250]], 'completed'),
+    order('PF-P009', 12, [['p2', 100], ['p4', 50]], 'pending'), order('PF-P010', 8, [['p5', 200]], 'failed'), order('PF-P011', 4, [['p7', 125]], 'refunded'),
+  ].reverse();
+  // Every completed order has its licence; the first two are filled in above, the rest start empty.
+  const fresh = purchases.filter((o) => o.status === 'completed' && !['PF-P001', 'PF-P002'].includes(o.id)).map((o): Licence => ({
+    id: `l-${o.id}`, productId: o.lines[0].productId, orderId: o.id, capacity: o.lines[0].qty, maxCycles: 3, activatedAt: o.at, expiresAt: o.at + 365 * DAY,
+    cycles: [{ n: 1, startedAt: o.at, students: [] }], active: {}, log: [],
+  }));
+
+  const mp = (id: string, title: string, type: MyType, subject: string, price: number, status: ProductStatus, extra: Partial<MyProduct> = {}): MyProduct =>
+    ({ id, title, type, course: 'CA Inter', subject, chapters: [], short: `${title} for CA Inter students.`, detail: '', code: id.toUpperCase(), status, updatedAt: ago(5), content: {}, free: false, price, limited: false, who: 'all', whoIds: [], ...extra });
+  const mine = [
+    mp('m1', 'Accounts Revision PDF', 'ebook', 'Accounting', 199, 'published', { content: { download: false, watermark: true, version: '2026.2' } }),
+    mp('m2', 'GST Test Series', 'tests', 'Indirect Tax Laws', 499, 'published', { content: { scheduled: false, marks: '100', duration: '180' } }),
+    mp('m3', 'AS 10 MCQ Bank', 'qbank', 'Accounting', 149, 'draft', { content: { mode: 'practice' } }),
+    mp('m4', 'Accounts Mega Pack', 'bundle', 'Accounting', 799, 'published', { items: ['m1', 'm3'] }),
+    mp('m5', 'Audit Case Question Bank', 'qbank', 'Auditing & Ethics', 249, 'published', { content: { mode: 'timed' } }),
+    mp('m6', 'Foundation Accounts Notes', 'ebook', 'Accounting', 149, 'published', { course: 'CA Foundation', short: 'Foundation Accounts Notes for CA Foundation students.' }),
+    mp('m7', 'FR Mock Test Series', 'tests', 'Financial Reporting', 699, 'published', { course: 'CA Final', short: 'FR Mock Test Series for CA Final students.' }),
+  ];
+  const sales: Sale[] = Array.from({ length: 48 }, (_, i) => {
+    const p = mine[[0, 1, 3, 4, 5, 6][i % 6]], st: OrderStatus = i % 17 === 5 ? 'pending' : i % 23 === 7 ? 'refunded' : i % 29 === 9 ? 'failed' : 'completed';
+    const b = withGst(p.price, 0, DEFAULT_RULES);
+    return { id: `ORD${String(i + 1).padStart(3, '0')}`, at: ago(Math.floor((1 - Math.sqrt(1 - i / 48)) * 170)), studentId: `s${i * 37 + 3}`, lines: [{ productId: p.id, qty: 1, amount: p.price }], ...b, status: st, method: i % 3 ? 'UPI' : 'Card', txn: `pay_${i}x7Q`, refund: st === 'refunded' ? b.total : 0 };
+  });
+  const offers: Offer[] = [{ id: 'o1', name: 'Diwali Offer', code: 'DIWALI20', auto: false, kind: 'percent', value: 20, products: [], limit: 100, perStudent: 1, from: '2026-10-25', to: '2026-11-15', who: 'all', whoIds: [], active: true, used: 37 }];
+  return { licences: [lic1, lic2, ...fresh], purchases, mine, sales, offers };
 }
 
+// ---------- Store ----------
 interface Shop {
-  catalog: Product[]; licences: Licence[]; mine: Product[]; orders: Order[]; coupons: Coupon[]; rules: Rules; addon: boolean;
-  buy: (productId: string, seats: number) => void;
-  assign: (licenceId: string, studentIds: string[]) => void;
-  revoke: (licenceId: string, studentIds: string[]) => void;
-  saveMine: (p: Omit<Product, 'id'>, id?: string) => string;
+  catalog: PfProduct[]; cart: Line[]; purchases: Purchase[]; licences: Licence[];
+  mine: MyProduct[]; offers: Offer[]; sales: Sale[]; rules: Rules; addon: boolean;
+  setCart: (productId: string, qty: number) => void;
+  checkout: (billing: Billing) => string;
+  allocate: (licenceId: string, ids: string[]) => string[];
+  revoke: (licenceId: string, ids: string[]) => void;
+  saveMine: (p: Omit<MyProduct, 'id' | 'updatedAt'>, id?: string) => string;
+  setStatus: (id: string, status: ProductStatus) => void;
+  duplicate: (id: string) => void;
+  saveOffer: (o: Omit<Offer, 'id' | 'used'>, id?: string) => void;
+  refund: (saleId: string) => void;
   setRules: (r: Partial<Rules>) => void;
-  addCoupon: (c: Omit<Coupon, 'id' | 'used'>) => void;
   unlock: () => void;
 }
+const swap = <T extends { id: string }>(list: T[], id: string, fn: (x: T) => T) => list.map((x) => (x.id === id ? fn(x) : x));
 
-const editLicence = (list: Licence[], id: string, fn: (l: Licence) => Licence) => list.map((l) => (l.id === id ? fn(l) : l));
-
-export const useShop = create<Shop>()(persist((set) => ({
-  catalog: CATALOG, rules: DEFAULT_RULES, addon: false, ...sample(),
-  // Buying a product the academy already holds adds seats to the same licence.
-  buy: (productId, seats) => set((s) => {
-    const held = s.licences.find((l) => l.productId === productId);
-    if (held) return { licences: editLicence(s.licences, held.id, (l) => ({ ...l, seats: l.seats + seats })) };
-    const now = Date.now();
-    return { licences: [{ id: uid(), productId, seats, boughtAt: now, expiresAt: now + s.rules.seatMonths * 30 * DAY, assigned: {}, log: [] }, ...s.licences] };
+export const useShop = create<Shop>()(persist((set, get) => ({
+  catalog: CATALOG, cart: [], rules: DEFAULT_RULES, addon: false, ...sample(),
+  setCart: (productId, qty) => set((s) => {
+    const price = s.catalog.find((p) => p.id === productId)!.price, rest = s.cart.filter((l) => l.productId !== productId);
+    return { cart: qty > 0 ? [...rest, { productId, qty, amount: qty * price }] : rest };
   }),
-  assign: (id, ids) => set((s) => ({ licences: editLicence(s.licences, id, (l) => {
-    const free = l.seats - Object.keys(l.assigned).length, now = Date.now(), add = ids.filter((x) => !l.assigned[x]).slice(0, free);
-    return { ...l, assigned: { ...l.assigned, ...Object.fromEntries(add.map((x) => [x, now])) }, log: [...add.map((studentId) => ({ at: now, studentId, action: 'assign' as const })), ...l.log] };
+  // Sample checkout: payment is marked successful, then one licence per product is created.
+  checkout: (billing) => {
+    const s = get(), now = Date.now(), id = `PF-P${String(s.purchases.length + 1).padStart(3, '0')}`;
+    const order: Purchase = { id, at: now, lines: s.cart, ...withGst(s.cart.reduce((a, l) => a + l.amount, 0), 0, s.rules), status: 'completed', method: billing.method, txn: `TXN${uid().toUpperCase()}`, billing };
+    const licences = s.cart.map((l): Licence => ({ id: uid(), productId: l.productId, orderId: id, capacity: l.qty, maxCycles: s.rules.cycles, activatedAt: now, expiresAt: now + s.rules.validityMonths * 30 * DAY, cycles: [{ n: 1, startedAt: now, students: [] }], active: {}, log: [] }));
+    set({ purchases: [order, ...s.purchases], licences: [...licences, ...s.licences], cart: [] });
+    return id;
+  },
+  allocate: (licenceId, ids) => {
+    const l = get().licences.find((x) => x.id === licenceId)!, r = allocate(l, ids, Date.now());
+    set((s) => ({ licences: swap(s.licences, licenceId, () => r.licence) }));
+    return r.blocked;
+  },
+  revoke: (licenceId, ids) => set((s) => ({ licences: swap(s.licences, licenceId, (l) => {
+    const active = { ...l.active }, gone = ids.filter((x) => active[x]); gone.forEach((x) => delete active[x]);
+    return { ...l, active, log: gone.length ? [{ at: Date.now(), action: 'revoked', studentIds: gone }, ...l.log] : l.log };
   }) })),
-  revoke: (id, ids) => set((s) => ({ licences: editLicence(s.licences, id, (l) => {
-    const now = Date.now(), ok = ids.filter((x) => l.assigned[x] && movableAt(l.assigned[x], s.rules) <= now);
-    const assigned = { ...l.assigned }; ok.forEach((x) => delete assigned[x]);
-    return { ...l, assigned, log: [...ok.map((studentId) => ({ at: now, studentId, action: 'revoke' as const })), ...l.log] };
-  }) })),
-  saveMine: (p, id) => { const key = id ?? uid(); set((s) => ({ mine: id ? s.mine.map((x) => (x.id === id ? { ...p, id } : x)) : [{ ...p, id: key }, ...s.mine] })); return key; },
+  saveMine: (p, id) => { const key = id ?? uid(); set((s) => ({ mine: id ? swap(s.mine, id, () => ({ ...p, id, updatedAt: Date.now() })) : [{ ...p, id: key, updatedAt: Date.now() }, ...s.mine] })); return key; },
+  setStatus: (id, status) => set((s) => ({ mine: swap(s.mine, id, (p) => ({ ...p, status, updatedAt: Date.now() })) })),
+  duplicate: (id) => set((s) => { const p = s.mine.find((x) => x.id === id)!; return { mine: [{ ...p, id: uid(), title: `${p.title} (copy)`, code: `${p.code}-COPY`, status: 'draft', updatedAt: Date.now() }, ...s.mine] }; }),
+  saveOffer: (o, id) => set((s) => ({ offers: id ? swap(s.offers, id, (x) => ({ ...x, ...o })) : [{ ...o, id: uid(), used: 0 }, ...s.offers] })),
+  refund: (saleId) => set((s) => ({ sales: swap(s.sales, saleId, (x) => ({ ...x, status: 'refunded', refund: x.total })) })),
   setRules: (r) => set((s) => ({ rules: { ...s.rules, ...r } })),
-  addCoupon: (c) => set((s) => ({ coupons: [{ ...c, id: uid(), used: 0 }, ...s.coupons] })),
   unlock: () => set({ addon: true }),
-}), { name: 'pf-shop-v2', partialize: ({ licences, mine, orders, coupons, rules, addon }) => ({ licences, mine, orders, coupons, rules, addon }) as Partial<Shop> }));
+}), { name: 'pf-shop-v7', partialize: ({ cart, purchases, licences, mine, offers, sales, rules, addon }) => ({ cart, purchases, licences, mine, offers, sales, rules, addon }) as Partial<Shop> }));
 
 /** Sales from the academy's own store: total, split by kind, and per month for the last `months` months. */
-export function salesSummary(orders: Order[], mine: Product[], months = 6) {
-  const kind = (id: string) => { const t = mine.find((p) => p.id === id)?.type; return t === 'mock-test' ? 'tests' : t === 'question-bank' ? 'banks' : 'ebooks'; };
-  const kinds = { ebooks: 0, tests: 0, banks: 0 };
-  const now = new Date(), monthly = Array(months).fill(0) as number[];
-  for (const o of orders) {
-    kinds[kind(o.productId)] += o.amount;
-    const d = new Date(o.at), ago = (now.getFullYear() - d.getFullYear()) * 12 + now.getMonth() - d.getMonth();
-    if (ago < months) monthly[months - 1 - ago] += o.amount;
+export function salesSummary(sales: Sale[], mine: MyProduct[], months = 6) {
+  const kind = (id: string) => { const t = mine.find((p) => p.id === id)?.type; return t === 'tests' ? 'tests' : t === 'qbank' ? 'banks' : 'ebooks'; };
+  const kinds = { ebooks: 0, tests: 0, banks: 0 }, now = new Date(), monthly = Array(months).fill(0) as number[];
+  for (const s of sales.filter((x) => x.status === 'completed')) {
+    for (const l of s.lines) kinds[kind(l.productId)] += l.amount;
+    const d = new Date(s.at), back = (now.getFullYear() - d.getFullYear()) * 12 + now.getMonth() - d.getMonth();
+    if (back < months) monthly[months - 1 - back] += s.subtotal;
   }
   return { total: kinds.ebooks + kinds.tests + kinds.banks, kinds, monthly };
 }
-
-// Parallax Flow coupons for academies (sample).
-export const PF_COUPONS: Record<string, number> = { LAUNCH10: 10, BULK15: 15 };

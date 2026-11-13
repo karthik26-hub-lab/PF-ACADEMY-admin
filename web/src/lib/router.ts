@@ -7,14 +7,16 @@ export type Route =
   | { page: 'batches' } | { page: 'batch'; id: string } | { page: 'students' } | { page: 'student'; id: string } | { page: 'join-requests' }
   | { page: 'faculty' } | { page: 'calendar' }
   | { page: 'exams' } | { page: 'exam-new' } | { page: 'exam'; id: string } | { page: 'reviews' }
-  | { page: 'settings'; tab: string } | { page: 'store'; tab: 'pf' | 'licences' | 'mine' };
+  | { page: 'settings'; tab: string } | { page: 'store'; tab: StoreTab };
+export type StoreTab = 'catalogue' | 'licences' | 'purchases' | 'products' | 'bundles' | 'offers' | 'sales';
+const STORE_TABS: StoreTab[] = ['catalogue', 'licences', 'purchases', 'products', 'bundles', 'offers', 'sales'];
 
 export function parse(hash: string): Route {
   const h = hash.replace(/^#\/?/, '');
   if (h === 'exams-new') return { page: 'exam-new' };
   const m = h.match(/^(exam|student|batch)-(.+)$/);
   if (m) return { page: m[1] as 'exam' | 'student' | 'batch', id: m[2] };
-  if (h === 'store' || h.startsWith('store-')) return { page: 'store', tab: (['licences', 'mine'].includes(h.slice(6)) ? h.slice(6) : 'pf') as 'pf' };
+  if (h === 'store' || h.startsWith('store-')) return { page: 'store', tab: STORE_TABS.find((t) => t === h.slice(6)) ?? 'catalogue' };
   if (h.startsWith('academy-')) return { page: 'settings', tab: h.slice(8) || 'general' };
   if (h === 'students-join') return { page: 'join-requests' };
   if (['academics', 'learning', 'assessments', 'reports', 'batches', 'students', 'faculty', 'calendar', 'exams', 'reviews'].includes(h)) return { page: h } as Route;
@@ -29,7 +31,7 @@ export function href(r: Route): string {
     case 'batch': return `#batch-${r.id}`;
     case 'join-requests': return '#students-join';
     case 'settings': return `#academy-${r.tab}`;
-    case 'store': return r.tab === 'pf' ? '#store' : `#store-${r.tab}`;
+    case 'store': return r.tab === 'catalogue' ? '#store' : `#store-${r.tab}`;
     case 'overview': return '#dashboard';
     default: return `#${r.page}`;
   }

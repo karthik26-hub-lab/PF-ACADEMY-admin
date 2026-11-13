@@ -20,7 +20,7 @@ export function Settings({ tab }: { tab: string }) {
   const current = SETTINGS_TABS.some(([k]) => k === tab) ? tab : 'general';
   const label = SETTINGS_TABS.find(([k]) => k === current)![1];
   return (
-    <Page crumbs={[{ label: 'Settings' }, { label }]}>
+    <Page crumbs={[{ label: 'Settings' }, { label }]} screen="settings">
       <div className="mb-6"><h1 className="text-[28px] font-bold tracking-[-0.03em]">Settings</h1><p className="text-sm text-muted">Academy profile, people and access, notifications, integrations and billing.</p></div>
       <div className="grid gap-6 md:grid-cols-[220px_minmax(0,1fr)]">
         <nav className="flex gap-1 overflow-x-auto md:flex-col" aria-label="Settings sections">
@@ -252,31 +252,24 @@ function ExamDefaults() {
 function StoreRules() {
   const { rules, setRules } = useShop();
   const num = (label: string, value: number, apply: (v: number) => void, hint?: string) => (
-    <Field label={label} hint={hint}><Input type="number" min={0} value={value} onChange={(e) => apply(Math.max(0, +e.target.value))} /></Field>
+    <Field label={label} hint={hint}><Input type="number" min={0} value={value} onChange={(e) => apply(Math.max(0, Math.floor(+e.target.value)))} /></Field>
   );
   return (
     <Card>
-      <CardHeader title="Store rules" desc="Seat licences for Parallax Flow products, and the Academy Store add-on." />
+      <CardHeader title="Store rules" desc="Licences for Parallax Flow products, and the My Store add-on." />
       <div className="space-y-5 p-5">
-        <div className="grid gap-4 sm:grid-cols-2">
-          {num('Seats last (months)', rules.seatMonths, (v) => setRules({ seatMonths: v }), 'New licences expire after this.')}
-          {num('A seat can move after (days)', rules.cooldownDays, (v) => setRules({ cooldownDays: v }), 'Stops one licence being rotated round the whole academy.')}
+        <div className="grid gap-4 sm:grid-cols-3">
+          {num('Licence validity (months)', rules.validityMonths, (v) => setRules({ validityMonths: v }), 'Expires even if cycles are unused.')}
+          {num('Allocation cycles per licence', rules.cycles, (v) => setRules({ cycles: Math.max(1, v) }), 'Each cycle allows the purchased number of unique students.')}
+          {num('GST (%)', rules.gst, (v) => setRules({ gst: v }))}
         </div>
-        <div><div className="mb-2 text-xs font-semibold">Volume discounts</div>
-          <div className="grid gap-3 sm:grid-cols-3">{rules.tiers.map((t, i) => (
-            <div key={i} className="flex items-center gap-2 rounded-xl bg-subtle p-2.5 text-xs">
-              <Input type="number" aria-label="From seats" value={t.min} onChange={(e) => setRules({ tiers: rules.tiers.map((x, j) => (j === i ? { ...x, min: +e.target.value } : x)) })} className="h-9 w-20" />seats →
-              <Input type="number" aria-label="Percent off" value={t.off} onChange={(e) => setRules({ tiers: rules.tiers.map((x, j) => (j === i ? { ...x, off: +e.target.value } : x)) })} className="h-9 w-16" />% off
-            </div>
-          ))}</div>
-        </div>
-        <div className="space-y-2"><div className="text-xs font-semibold">Academy Store payments</div>
+        <div className="space-y-2"><div className="text-xs font-semibold">My Store payments</div>
           <RadioCard id="pay-pf" name="payout" checked={rules.payout === 'parallax'} onChange={() => setRules({ payout: 'parallax' })} title="Parallax Flow collects and pays the academy" desc="Simpler for academies. Parallax Flow keeps a commission and handles payouts and GST invoices." />
           <RadioCard id="pay-ac" name="payout" checked={rules.payout === 'academy'} onChange={() => setRules({ payout: 'academy' })} title="Each academy connects its own payment account" desc="Money goes straight to the academy. Each academy sets up its own gateway." />
         </div>
         <div className="grid gap-4 sm:grid-cols-2">
           {rules.payout === 'parallax' && num('Commission per sale (%)', rules.commission, (v) => setRules({ commission: v }))}
-          {num('Academy Store add-on (₹ / month)', rules.addonPrice, (v) => setRules({ addonPrice: v }))}
+          {num('My Store add-on (₹ / month)', rules.addonPrice, (v) => setRules({ addonPrice: v }))}
         </div>
       </div>
     </Card>

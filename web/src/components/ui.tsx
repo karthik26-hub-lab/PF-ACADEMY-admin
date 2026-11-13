@@ -90,15 +90,36 @@ export function Switch({ checked, onCheckedChange, id, label }: { checked: boole
 
 export const spring = { type: 'spring', stiffness: 520, damping: 40, mass: 0.8 } as const;
 
+/**
+ * The highlight that slides to the selected option (the one with aria-selected).
+ * Moved with a plain CSS transform, so it stays smooth inside dialogs and scrolling lists.
+ * Put it first inside a `relative` container. `line` draws an underline instead of a pill.
+ */
+export function Glide({ value, line, className }: { value: string; line?: boolean; className?: string }) {
+  const ref = React.useRef<HTMLSpanElement>(null), moved = React.useRef(false);
+  const [box, setBox] = React.useState<{ x: number; y: number; w: number; h: number; anim: boolean }>();
+  const place = React.useCallback((anim: boolean) => {
+    const on = ref.current?.parentElement?.querySelector<HTMLElement>('[aria-selected="true"]');
+    if (on) setBox({ x: on.offsetLeft, y: on.offsetTop, w: on.offsetWidth, h: on.offsetHeight, anim });
+  }, []);
+  React.useLayoutEffect(() => { place(moved.current); moved.current = true; }, [value, place]);
+  React.useEffect(() => {
+    const ro = new ResizeObserver(() => place(false));
+    ro.observe(ref.current!.parentElement!);
+    return () => ro.disconnect();
+  }, [place]);
+  return <span ref={ref} aria-hidden style={box && { transform: `translate(${box.x}px, ${line ? 0 : box.y}px)`, width: box.w, height: line ? undefined : box.h }}
+    className={cn('pointer-events-none absolute left-0', line ? 'bottom-0 h-0.5' : 'top-0', box?.anim && 'transition-[transform,width,height] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)]', !box && 'opacity-0', className)} />;
+}
+
 export function Segmented<T extends string>({ value, onChange, options, className }: { value: T; onChange: (v: T) => void; options: { value: T; label: React.ReactNode; count?: number }[]; className?: string }) {
-  const id = React.useId();
   return (
-    <div role="tablist" className={cn('inline-flex h-10 max-w-full items-center gap-0.5 overflow-x-auto rounded-full bg-subtle p-1 ring-1 ring-inset ring-border [scrollbar-width:none]', className)}>
+    <div role="tablist" className={cn('relative inline-flex h-10 max-w-full items-center gap-0.5 overflow-x-auto rounded-full bg-subtle p-1 ring-1 ring-inset ring-border [scrollbar-width:none]', className)}>
+      <Glide value={value} className="rounded-full bg-fg" />
       {options.map((o) => (
-        <button key={o.value} role="tab" aria-selected={value === o.value} onClick={() => onChange(o.value)}
-          className={cn('relative inline-flex h-8 shrink-0 items-center gap-1.5 rounded-full px-3.5 text-xs font-semibold transition-colors duration-200', value === o.value ? 'text-bg' : 'text-muted hover:text-fg')}>
-          {value === o.value && <motion.span layoutId={`seg-${id}`} transition={spring} className="absolute inset-0 rounded-full bg-fg" />}
-          <span className="relative z-10 inline-flex items-center gap-1.5">{o.label}{o.count !== undefined && <span className="tnum text-faint">{o.count}</span>}</span>
+        <button key={o.value} type="button" role="tab" aria-selected={value === o.value} onClick={() => onChange(o.value)}
+          className={cn('relative inline-flex h-8 shrink-0 grow items-center justify-center gap-1.5 rounded-full px-3.5 text-xs font-semibold transition-colors duration-200', value === o.value ? 'text-bg' : 'text-muted hover:text-fg')}>
+          {o.label}{o.count !== undefined && <span className="tnum text-faint">{o.count}</span>}
         </button>
       ))}
     </div>
@@ -106,14 +127,13 @@ export function Segmented<T extends string>({ value, onChange, options, classNam
 }
 
 export function Tabs<T extends string>({ value, onChange, tabs }: { value: T; onChange: (v: T) => void; tabs: { value: T; label: string; count?: number }[] }) {
-  const id = React.useId();
   return (
-    <div role="tablist" className="flex gap-4 overflow-x-auto border-b border-border px-4 [scrollbar-width:none]">
+    <div role="tablist" className="relative flex gap-4 overflow-x-auto border-b border-border px-4 [scrollbar-width:none]">
+      <Glide value={value} line className="rounded-full bg-fg" />
       {tabs.map((t) => (
         <button key={t.value} role="tab" aria-selected={value === t.value} onClick={() => onChange(t.value)}
           className={cn('relative flex h-10 items-center gap-1.5 whitespace-nowrap text-sm font-medium transition-colors duration-200', value === t.value ? 'text-fg' : 'text-muted hover:text-fg')}>
           {t.label}{t.count !== undefined && <span className="tnum rounded bg-subtle px-1.5 text-2xs text-muted ring-1 ring-inset ring-border">{t.count}</span>}
-          {value === t.value && <motion.span layoutId={`tab-${id}`} transition={spring} className="absolute inset-x-0 -bottom-px h-0.5 rounded-full bg-fg" />}
         </button>
       ))}
     </div>
