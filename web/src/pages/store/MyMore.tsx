@@ -225,7 +225,7 @@ function SaleDialog({ s, title, onClose }: { s: Sale; title: (id: string) => str
           <Table><thead><tr><Th>Product</Th><Th>Type</Th><Th className="text-right">Qty</Th><Th className="text-right">Amount</Th></tr></thead>
             <tbody>{s.lines.map((l) => <tr key={l.productId}><Td>{title(l.productId)}</Td><Td className="text-xs">{MY_TYPE[mine.find((x) => x.id === l.productId)?.type ?? 'ebook']}</Td><Td className="tnum text-right">{l.qty}</Td><Td className="tnum text-right">{inr(l.amount)}</Td></tr>)}</tbody></Table>
         </section>
-        <Facts title="Payment" rows={[['Subtotal', inr(s.subtotal)], ['Discount', inr(s.discount)], [`GST ${rules.gst}%`, inr(s.gst)], ['Total amount', inr(s.total)], ['Method', s.method], ['Gateway', rules.payout === 'parallax' ? 'Parallax Flow' : "Academy's own"], ['Transaction ID', s.txn], ['Refund', s.refund ? inr(s.refund) : '—']]} />
+        <Facts title="Payment" rows={[['Subtotal', inr(s.subtotal)], ['Discount', inr(s.discount)], ['Total amount', inr(s.total)], ['Method', s.method], ['Gateway', rules.payout === 'parallax' ? 'Parallax Flow' : "Academy's own"], ['Transaction ID', s.txn], ['Refund', s.refund ? inr(s.refund) : '—']]} />
         <Facts title="Access" rows={[['Entitlement', granted ? 'Active' : s.status === 'refunded' ? 'Revoked after refund' : 'Not granted'], ['Activated', granted ? fmtDate(s.at) : '—'], ['Expires', granted ? fmtDate(s.at + days * 86400e3) : '—'], ['Access method', 'Web and mobile app'], ['Download', p?.content.download ? 'Allowed' : 'View only']]} />
       </div>
     </Dialog>

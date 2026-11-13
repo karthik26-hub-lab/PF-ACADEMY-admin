@@ -1,11 +1,11 @@
 import { motion } from 'framer-motion';
-import { ArrowUpRight, BarChart3, CalendarDays, CheckCheck, ClipboardCheck, FileQuestion, FolderOpen, GraduationCap, IndianRupee, Inbox, Layers, LineChart, Megaphone, PenLine, Trophy, UserCheck, Users } from 'lucide-react';
+import { ArrowUpRight, BarChart3, CalendarDays, CheckCheck, ClipboardCheck, FileQuestion, FolderOpen, GraduationCap, Inbox, Layers, LineChart, Megaphone, PenLine, Trophy, UserCheck, Users } from 'lucide-react';
 import type { ReactNode } from 'react';
 import { Donut, HatchedBars, Ring, Sparkline } from '../components/charts';
 import { Page } from '../components/layout/Page';
 import { Avatar, Badge } from '../components/ui';
 import { href, type Route } from '../lib/router';
-import { examStatus, inr, useStore } from '../lib/store';
+import { examStatus, useStore } from '../lib/store';
 import { cn } from '../lib/utils';
 
 type Tile = { title: string; desc: string; icon: typeof Users; to?: Route; metric?: ReactNode; sub?: ReactNode; visual?: ReactNode; phase?: number };
@@ -102,15 +102,13 @@ export function AssessmentsHub() {
 }
 
 export function ReportsHub() {
-  const { students, revenue } = useStore();
+  const { students } = useStore();
   const avg = students.length ? Math.round(students.reduce((a, s) => a + (s.avgScore ?? 0), 0) / students.length) : 0;
-  const paid = students.filter((s) => s.fee === 'paid').length;
   return (
-    <Hub crumb="Reports" title="Reports" desc="Performance, learning activity, attendance and fees." tiles={[
+    <Hub crumb="Reports" title="Reports" desc="Performance, learning activity and attendance." tiles={[
       { title: 'Performance', desc: 'Marks and progress over time', icon: LineChart, phase: 4, metric: `${avg}%`, sub: 'Average score', visual: <Sparkline values={[58, 61, 60, 64, 63, 67, avg || 66]} /> },
       { title: 'Learning analytics', desc: 'Materials, chapters, MCQs, consistency', icon: BarChart3, phase: 4 },
       { title: 'Attendance', desc: 'Participation and attendance', icon: CheckCheck, phase: 4 },
-      { title: 'Fee reports', desc: 'Payments and outstanding fees', icon: IndianRupee, phase: 4, metric: inr(revenue.ebooks + revenue.tests + revenue.questionBanks), sub: `${paid.toLocaleString('en-IN')} students fully paid` },
     ]} />
   );
 }

@@ -1,5 +1,5 @@
 import { motion } from 'framer-motion';
-import { ArrowRight, BookOpen, CircleCheck, Download, FileText, GraduationCap, Inbox, Layers, Plus, Radio, ScanLine, Upload, Users, Wallet } from 'lucide-react';
+import { ArrowRight, BookOpen, CircleCheck, Download, FileText, GraduationCap, Inbox, Layers, Plus, Radio, ScanLine, Smartphone, Upload, Users } from 'lucide-react';
 import type { ReactNode } from 'react';
 import { Delta, Donut, HatchedBars, Sparkline } from '../components/charts';
 import { Page } from '../components/layout/Page';
@@ -65,11 +65,11 @@ export function Overview() {
   const empty = !s.students.length && !s.exams.length && !s.batches.length;
   useTick();
   const pendingReview = completed.reduce((a, x) => a + Math.max(0, x.e.flagged - x.e.reviewed), 0);
-  const feesDue = s.students.filter((x) => x.fee === 'due').length;
+  const phoneAsks = s.students.filter((x) => x.deviceRequest).length;
   // One spreadsheet with the figures on this page.
   const exportReport = () => void downloadCSV(`dashboard-${now.toISOString().slice(0, 10)}.csv`, [
     ['Section', 'Item', 'Value'],
-    ['Students', 'Enrolled', s.students.length], ['Students', 'Joined in the last 30 days', last30], ['Students', 'Fees due', feesDue],
+    ['Students', 'Enrolled', s.students.length], ['Students', 'Joined in the last 30 days', last30], ['Students', 'Asking to change phone', phoneAsks],
     ['Batches', 'Active', activeBatches.length], ['Batches', 'Archived', s.batches.length - activeBatches.length],
     ['Exams', 'Live', live.length], ['Exams', 'Scheduled', scheduled.length], ['Exams', 'Completed', completed.length], ['Exams', 'Scripts waiting for review', pendingReview],
     ['Store revenue', 'E-books', sales.kinds.ebooks], ['Store revenue', 'Tests', sales.kinds.tests], ['Store revenue', 'Question banks', sales.kinds.banks],
@@ -79,7 +79,7 @@ export function Overview() {
     { n: live.length, label: live.length === 1 ? 'exam live now' : 'exams live now', icon: Radio, go: () => openExams('live'), hot: true },
     { n: pendingReview, label: 'scripts waiting for faculty review', icon: ScanLine, go: () => openExams('closed') },
     { n: s.joinRequests.length, label: s.joinRequests.length === 1 ? 'join request' : 'join requests', icon: Inbox, go: () => navigate({ page: 'join-requests' }) },
-    { n: feesDue, label: 'students with fees due', icon: Wallet, go: () => { useUI.getState().setStudentPreset({ batch: 'all', fee: 'due' }); navigate({ page: 'students' }); } },
+    { n: phoneAsks, label: phoneAsks === 1 ? 'student asking to change phone' : 'students asking to change phone', icon: Smartphone, go: () => { useUI.getState().setStudentPreset({ batch: 'all', phone: true }); navigate({ page: 'students' }); } },
   ].filter((a) => a.n > 0);
 
   return (

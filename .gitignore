@@ -1,3 +1,5 @@
 node_modules/
 dist/
 .env
+# Page images made from Parallax Flow's own PDFs: client material, kept out of git.
+web/src/assets/store/

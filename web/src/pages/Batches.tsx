@@ -91,7 +91,7 @@ export function BatchDetail({ id }: { id: string }) {
   const roster = s.students.filter((x) => x.batchId === id);
   const fac = s.members.filter((m) => b.facultyIds.includes(m.id));
   const avg = roster.length ? Math.round(roster.reduce((a, x) => a + (x.avgScore ?? 0), 0) / roster.length) : 0;
-  const paid = roster.filter((x) => x.fee === 'paid').length;
+  const activeN = roster.filter((x) => x.status === 'active').length;
   const events = s.events.filter((e) => e.batchId === id || !e.batchId).filter((e) => e.date >= new Date().toISOString().slice(0, 10)).sort((a, c) => a.date.localeCompare(c.date)).slice(0, 10);
   const course = s.courses.find((c) => c.name === b.course);
   const bands = [0, 40, 50, 60, 70, 80].map((lo, i, arr) => ({ label: i === arr.length - 1 ? `${lo}+` : `${lo}–${arr[i + 1] - 1}`, value: roster.filter((x) => (x.avgScore ?? -1) >= lo && (x.avgScore ?? -1) < (arr[i + 1] ?? 101)).length }));
@@ -104,7 +104,7 @@ export function BatchDetail({ id }: { id: string }) {
           <h1 className="text-[28px] font-bold tracking-[-0.03em]">{b.name}</h1><p className="text-sm text-muted">{b.schedule || 'No schedule'} · since {fmtDate(b.startDate)}</p></div>
       </div>
       <div className="mb-5 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        {[['Students', roster.length, <Users key="u" className="size-4" />], ['Faculty', fac.length, <Users key="f" className="size-4" />], ['Average score', `${avg}%`, <Ring key="r" value={avg} size={40} stroke={4} />], ['Fees fully paid', `${paid}/${roster.length}`, <Ring key="p" value={roster.length ? (paid / roster.length) * 100 : 0} size={40} stroke={4} tone="pop" />]].map(([l, v, ic], i) => (
+        {[['Students', roster.length, <Users key="u" className="size-4" />], ['Faculty', fac.length, <Users key="f" className="size-4" />], ['Average score', `${avg}%`, <Ring key="r" value={avg} size={40} stroke={4} />], ['Active students', `${activeN}/${roster.length}`, <Ring key="p" value={roster.length ? (activeN / roster.length) * 100 : 0} size={40} stroke={4} tone="pop" />]].map(([l, v, ic], i) => (
           <motion.div key={l as string} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.05 }} className="flex items-center justify-between rounded-2xl bg-panel p-5 ring-1 ring-black/[0.04] dark:ring-white/[0.06]">
             <div><div className="text-xs text-muted">{l}</div><div className="tnum mt-1 text-2xl font-bold leading-tight tracking-tight">{v}</div></div>{ic}
           </motion.div>

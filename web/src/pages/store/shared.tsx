@@ -7,7 +7,7 @@ import { COURSES, inr, useStore, type Course } from '../../lib/store';
 import { Donut, HatchedBars } from '../../components/charts';
 import { cn, inrShort } from '../../lib/utils';
 
-const TONE: Record<PfType | MyType, string> = { study: 'tone-class', ebook: 'tone-class', revision: 'tone-holiday', qbank: 'tone-exam', tests: 'tone-deadline', bundle: 'tone-buffer' };
+export const TONE: Record<PfType | MyType, string> = { study: 'tone-class', ebook: 'tone-class', revision: 'tone-holiday', qbank: 'tone-exam', tests: 'tone-deadline', bundle: 'tone-buffer' };
 export const Cover = ({ type, label, className }: { type: PfType | MyType; label: string; className?: string }) => (
   <div className={cn('tone-soft flex flex-col justify-between rounded-xl p-3', TONE[type], className)}>
     <BookOpen className="size-4 opacity-70" /><span className="text-[10px] font-bold uppercase tracking-wide opacity-80">{label}</span>
@@ -49,8 +49,8 @@ export function OrderInsights({ orders, status, setStatus, money, moneyLabel, ex
   );
 }
 
-export const SearchBox = ({ value, onChange, placeholder }: { value: string; onChange: (v: string) => void; placeholder: string }) => (
-  <div className="relative w-full sm:w-64"><Search className="pointer-events-none absolute left-3.5 top-1/2 size-4 -translate-y-1/2 text-faint" /><Input value={value} onChange={(e) => onChange(e.target.value)} placeholder={placeholder} className="pl-10" /></div>
+export const SearchBox = ({ value, onChange, placeholder, className }: { value: string; onChange: (v: string) => void; placeholder: string; className?: string }) => (
+  <div className={cn('relative w-full sm:w-64', className)}><Search className="pointer-events-none absolute left-3.5 top-1/2 size-4 -translate-y-1/2 text-faint" /><Input value={value} onChange={(e) => onChange(e.target.value)} placeholder={placeholder} className="pl-10" /></div>
 );
 
 /** Rows of label / value, used on order and product details. */

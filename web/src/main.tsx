@@ -20,6 +20,7 @@ import { ExamDetail } from './pages/ExamDetail';
 import { Reviews } from './pages/Reviews';
 import { Students } from './pages/Students';
 import { StudentDetail } from './pages/StudentDetail';
+import { StudentReport } from './pages/StudentReport';
 import { BatchDetail, Batches } from './pages/Batches';
 import { Faculty } from './pages/Faculty';
 import { Calendar } from './pages/Calendar';
@@ -54,6 +55,7 @@ function App() {
       case 'students': return <Students tab="all" />;
       case 'join-requests': return <Students tab="requests" />;
       case 'student': return <StudentDetail id={route.id} />;
+      case 'student-report': return <StudentReport id={route.id} section={route.section} />;
       case 'batches': return <Batches />;
       case 'batch': return <BatchDetail id={route.id} />;
       case 'faculty': return <Faculty />;

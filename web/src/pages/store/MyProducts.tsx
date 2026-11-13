@@ -68,7 +68,7 @@ const STEPS = ['Basic information', 'Product content', 'Pricing & availability',
 const blank = (): Omit<MyProduct, 'id' | 'updatedAt'> => ({ title: '', type: 'ebook', course: 'CA Inter', subject: '', chapters: [], short: '', detail: '', code: '', status: 'draft', content: {}, free: false, price: 199, limited: false, who: 'all', whoIds: [] });
 
 function Wizard({ p, onClose, onUpgrade }: { p: MyProduct | null; onClose: () => void; onUpgrade: () => void }) {
-  const { saveMine, addon, rules } = useShop();
+  const { saveMine, addon } = useShop();
   const { exams } = useStore();
   const [f, setF] = useState(p ?? blank());
   const [step, setStep] = useState(0);
@@ -144,7 +144,6 @@ function Wizard({ p, onClose, onUpgrade }: { p: MyProduct | null; onClose: () =>
         {step === 1 && (f.type === 'bundle' ? <p className="text-sm text-muted">Bundles are edited in the Bundles tab.</p> : content[f.type])}
         {step === 2 && <>
           <Field label="Pricing model"><Segmented value={f.free ? 'free' : 'paid'} onChange={(v) => set({ free: v === 'free' })} options={[{ value: 'paid', label: 'Paid' }, { value: 'free', label: 'Free' }]} /></Field>
-          <Field label="GST" hint="Filled in from Store rules."><Input readOnly value={`${rules.gst}% added at checkout`} /></Field>
           {!f.free && <>
             <Field label="Selling price (₹)"><Input type="number" min={1} value={f.price} onChange={(e) => set({ price: +e.target.value })} /></Field>
             <Field label="Discounted price (₹)" optional><Input type="number" value={f.discounted ?? ''} onChange={(e) => set({ discounted: e.target.value ? +e.target.value : undefined })} /></Field>

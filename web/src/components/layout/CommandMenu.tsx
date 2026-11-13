@@ -64,9 +64,9 @@ export function CommandMenu() {
               </Command.Group>}
               {students.length > 0 && <Command.Group heading="Students" className="[&_[cmdk-group-heading]]:px-2.5 [&_[cmdk-group-heading]]:pb-1 [&_[cmdk-group-heading]]:pt-2 [&_[cmdk-group-heading]]:text-2xs [&_[cmdk-group-heading]]:font-medium [&_[cmdk-group-heading]]:text-faint">
                 {students.slice(0, 300).map((s) => (
-                  <Command.Item key={s.id} value={`student ${s.name} ${s.roll} ${s.id}`} onSelect={() => go({ page: 'student', id: s.id })}
+                  <Command.Item key={s.id} value={`student ${s.name} ${s.studentId} ${s.phone}`} onSelect={() => go({ page: 'student', id: s.id })}
                     className="flex h-9 cursor-default items-center gap-2.5 rounded-md px-2.5 text-sm aria-selected:bg-hover">
-                    <Avatar name={s.name} size="sm" />{s.name}<span className="ml-auto font-mono text-xs text-faint">{s.roll}</span>
+                    <Avatar name={s.name} size="sm" />{s.name}<span className="ml-auto font-mono text-xs text-faint">{s.studentId}</span>
                   </Command.Item>
                 ))}
               </Command.Group>}

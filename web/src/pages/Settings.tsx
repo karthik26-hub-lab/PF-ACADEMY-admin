@@ -71,6 +71,8 @@ function General() {
           <Field label="Phone" htmlFor="g-ph"><Input id="g-ph" value={f.phone} onChange={set('phone')} /></Field>
           <Field label="Your name" htmlFor="g-me"><Input id="g-me" value={f.myName} onChange={set('myName')} /></Field>
           <Field label="Sign-in email" htmlFor="g-myemail"><Input id="g-myemail" value={me.email} disabled /></Field>
+          <Field label="GSTIN" htmlFor="g-gstin" hint="Set when your academy account was created. Used on every invoice."><Input id="g-gstin" value={academy.gstin || '—'} disabled /></Field>
+          <Field label="Billing address" htmlFor="g-addr" hint="To change billing details, contact Parallax Flow."><Input id="g-addr" value={academy.address || '—'} disabled /></Field>
         </div>
         <div className="flex justify-end gap-2 border-t border-border px-5 py-4">
           <Button disabled={!dirty} onClick={() => setF({ ...academy, myName: me.name })}>Discard</Button>
@@ -258,13 +260,12 @@ function StoreRules() {
     <Card>
       <CardHeader title="Store rules" desc="Licences for Parallax Flow products, and the My Store add-on." />
       <div className="space-y-5 p-5">
-        <div className="grid gap-4 sm:grid-cols-3">
+        <div className="grid gap-4 sm:grid-cols-2">
           {num('Licence validity (months)', rules.validityMonths, (v) => setRules({ validityMonths: v }), 'Expires even if cycles are unused.')}
           {num('Allocation cycles per licence', rules.cycles, (v) => setRules({ cycles: Math.max(1, v) }), 'Each cycle allows the purchased number of unique students.')}
-          {num('GST (%)', rules.gst, (v) => setRules({ gst: v }))}
         </div>
         <div className="space-y-2"><div className="text-xs font-semibold">My Store payments</div>
-          <RadioCard id="pay-pf" name="payout" checked={rules.payout === 'parallax'} onChange={() => setRules({ payout: 'parallax' })} title="Parallax Flow collects and pays the academy" desc="Simpler for academies. Parallax Flow keeps a commission and handles payouts and GST invoices." />
+          <RadioCard id="pay-pf" name="payout" checked={rules.payout === 'parallax'} onChange={() => setRules({ payout: 'parallax' })} title="Parallax Flow collects and pays the academy" desc="Simpler for academies. Parallax Flow keeps a commission and handles payouts and invoices." />
           <RadioCard id="pay-ac" name="payout" checked={rules.payout === 'academy'} onChange={() => setRules({ payout: 'academy' })} title="Each academy connects its own payment account" desc="Money goes straight to the academy. Each academy sets up its own gateway." />
         </div>
         <div className="grid gap-4 sm:grid-cols-2">

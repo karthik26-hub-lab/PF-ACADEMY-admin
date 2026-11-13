@@ -10,17 +10,17 @@ import { downloadBlob, fmtDate, fmtDateTime } from '../../lib/utils';
 import { CourseToggle, Facts, OrderInsights, PAYMENT, SearchBox, StatusBadge, inRange, type CourseFilter } from './shared';
 
 /** A plain HTML invoice that prints cleanly. */
-export function invoice(o: Purchase, title: (id: string) => string, academy: string, gstPct: number) {
+export function invoice(o: Purchase, title: (id: string) => string, academy: string) {
   const rows = o.lines.map((l) => `<tr><td>${title(l.productId)}</td><td>${l.qty}</td><td>${inr(l.amount)}</td></tr>`).join('');
   const html = `<!doctype html><meta charset="utf-8"><title>Invoice ${o.id}</title><body style="font-family:system-ui;max-width:640px;margin:40px auto">
-<h2>Parallax Flow · Tax invoice</h2><p>Invoice for order <b>${o.id}</b> · ${fmtDate(o.at)}<br>Billed to: ${o.billing?.academy ?? academy}${o.billing?.gstin ? ` · GSTIN ${o.billing.gstin}` : ''}</p>
+<h2>Parallax Flow · Invoice</h2><p>Invoice for order <b>${o.id}</b> · ${fmtDate(o.at)}<br>Billed to: ${o.billing?.academy ?? academy}${o.billing?.gstin ? ` · GSTIN ${o.billing.gstin}` : ''}${o.billing?.address ? `<br>${o.billing.address}` : ''}</p>
 <table width="100%" border="1" cellpadding="6" style="border-collapse:collapse"><tr><th align="left">Product</th><th>Capacity</th><th>Amount</th></tr>${rows}</table>
-<p>Subtotal ${inr(o.subtotal)} · Discount ${inr(o.discount)} · GST ${gstPct}% ${inr(o.gst)}<br><b>Total ${inr(o.total)}</b> · ${o.method} · ${o.txn || 'not paid'}</p><p style="color:#888">Sample invoice from the preview.</p></body>`;
+<p>Subtotal ${inr(o.subtotal)} · Discount ${inr(o.discount)}<br><b>Total ${inr(o.total)}</b> · ${o.method} · ${o.txn || 'not paid'}</p><p style="color:#888">Sample invoice from the preview.</p></body>`;
   return downloadBlob(`invoice-${o.id}.html`, new Blob([html], { type: 'text/html' }));
 }
 
 export function Purchases() {
-  const { purchases, catalog, rules } = useShop();
+  const { purchases, catalog } = useShop();
   const academy = useStore((s) => s.academy.name);
   const [course, setCourse] = useState<CourseFilter>('all');
   const [q, setQ] = useState(''), [from, setFrom] = useState(''), [to, setTo] = useState('');
@@ -32,7 +32,7 @@ export function Purchases() {
   const shown = inCourse.filter((o) => `${o.id} ${o.lines.map((l) => title(l.productId)).join(' ')}`.toLowerCase().includes(q.toLowerCase())
     && inRange(o.at, from, to) && (status === 'all' || o.status === status) && (pay === 'all' || PAYMENT[o.status] === pay));
   const done = inCourse.filter((o) => o.status === 'completed');
-  const download = (o: Purchase) => invoice(o, title, academy, rules.gst).then((ok) => ok && toast.success('Invoice downloaded'));
+  const download = (o: Purchase) => invoice(o, title, academy).then((ok) => ok && toast.success('Invoice downloaded'));
   return (
     <>
       <div className="mb-4"><CourseToggle value={course} onChange={setCourse} /></div>
@@ -57,14 +57,14 @@ export function Purchases() {
 }
 
 function OrderDialog({ o, title, onClose, onInvoice }: { o: Purchase; title: (id: string) => string; onClose: () => void; onInvoice: () => void }) {
-  const { licences, rules } = useShop();
+  const { licences } = useShop();
   const lic = licences.filter((l) => l.orderId === o.id);
   return (
     <Dialog wide open onOpenChange={(v) => !v && onClose()} title={`Order ${o.id}`}
       footer={<><Button disabled={o.status !== 'completed'} onClick={onInvoice}><Download /> Download invoice</Button>{lic.length > 0 && <Button variant="primary" onClick={() => { onClose(); navigate({ page: 'store', tab: 'licences' }); }}>View licence & access</Button>}</>}>
       <div className="grid gap-4 pb-2 sm:grid-cols-2">
         <Facts title="Order" rows={[['Order ID', o.id], ['Order date', fmtDateTime(o.at)], ['Order status', <StatusBadge key="s" s={o.status} />], ['Payment status', PAYMENT[o.status]]]} />
-        <Facts title="Payment" rows={[['Subtotal', inr(o.subtotal)], ['Discount', inr(o.discount)], [`GST ${rules.gst}%`, inr(o.gst)], ['Total paid', inr(o.status === 'completed' ? o.total : 0)], ['Method', o.method], ['Transaction ID', o.txn || '—'], ['Payment date', o.txn ? fmtDate(o.at) : '—']]} />
+        <Facts title="Payment" rows={[['Subtotal', inr(o.subtotal)], ['Discount', inr(o.discount)], ['Total paid', inr(o.status === 'completed' ? o.total : 0)], ['Method', o.method], ['Transaction ID', o.txn || '—'], ['Payment date', o.txn ? fmtDate(o.at) : '—']]} />
         <section className="sm:col-span-2"><h4 className="mb-1.5 text-2xs font-semibold uppercase tracking-wide text-faint">Products purchased</h4>
           <Table><thead><tr><Th>Product</Th><Th className="text-right">Capacity</Th><Th className="text-right">Amount</Th></tr></thead>
             <tbody>{o.lines.map((l) => <tr key={l.productId}><Td>{title(l.productId)}</Td><Td className="tnum text-right">{l.qty}</Td><Td className="tnum text-right">{inr(l.amount)}</Td></tr>)}</tbody></Table>

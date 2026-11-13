@@ -203,8 +203,8 @@ export const Avatar = ({ name, size = 'md', className }: { name: string; size?: 
   );
 };
 
-export const Card = ({ className, children }: { className?: string; children: React.ReactNode }) => (
-  <section className={cn('rounded-2xl bg-panel ring-1 ring-black/[0.04] dark:ring-white/[0.06]', className)}>{children}</section>
+export const Card = ({ className, children, id }: { className?: string; children: React.ReactNode; id?: string }) => (
+  <section id={id} className={cn('rounded-2xl bg-panel ring-1 ring-black/[0.04] dark:ring-white/[0.06]', className)}>{children}</section>
 );
 export const CardHeader = ({ title, desc, action, className }: { title: React.ReactNode; desc?: React.ReactNode; action?: React.ReactNode; className?: string }) => (
   <header className={cn('flex min-h-12 items-start justify-between gap-3 px-5 pb-2 pt-4', className)}>
@@ -258,13 +258,13 @@ export const Td = ({ children, className, ...p }: React.TdHTMLAttributes<HTMLTab
 );
 
 // ---------- Overlays ----------
-export function Dialog({ open, onOpenChange, title, desc, children, footer, wide }: { open: boolean; onOpenChange: (v: boolean) => void; title: string; desc?: string; children?: React.ReactNode; footer?: React.ReactNode; wide?: boolean }) {
+export function Dialog({ open, onOpenChange, title, desc, children, footer, wide, className }: { open: boolean; onOpenChange: (v: boolean) => void; title: string; desc?: string; children?: React.ReactNode; footer?: React.ReactNode; wide?: boolean; className?: string }) {
   return (
     <DialogPrimitive.Root open={open} onOpenChange={onOpenChange}>
       <DialogPrimitive.Portal>
         <DialogPrimitive.Overlay className="fixed inset-0 z-50 bg-black/40 backdrop-blur-[2px] data-[state=open]:animate-fade-in data-[state=closed]:animate-fade-out" />
         <DialogPrimitive.Content aria-describedby={undefined}
-          className={cn('fixed left-1/2 top-[12vh] z-50 flex max-h-[80vh] w-[calc(100vw-32px)] -translate-x-1/2 flex-col rounded-2xl bg-panel shadow-float', wide ? 'max-w-2xl' : 'max-w-md', 'data-[state=open]:animate-dialog-in data-[state=closed]:animate-dialog-out')}>
+          className={cn('fixed left-1/2 top-[12vh] z-50 flex max-h-[80vh] w-[calc(100vw-32px)] -translate-x-1/2 flex-col rounded-2xl bg-panel shadow-float', wide ? 'max-w-2xl' : 'max-w-md', 'data-[state=open]:animate-dialog-in data-[state=closed]:animate-dialog-out', className)}>
           <div className="flex items-start justify-between gap-4 px-5 pb-1 pt-4">
             <div><DialogPrimitive.Title className="text-base font-semibold">{title}</DialogPrimitive.Title>
               {desc && <DialogPrimitive.Description className="mt-0.5 text-sm text-muted">{desc}</DialogPrimitive.Description>}</div>

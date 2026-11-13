@@ -1,14 +1,14 @@
 import { motion } from 'framer-motion';
-import { Copy, FileSpreadsheet, KeyRound, PenLine, QrCode, RefreshCw, Upload } from 'lucide-react';
+import { Copy, Download, FileSpreadsheet, KeyRound, PenLine, QrCode, RefreshCw, Upload } from 'lucide-react';
 import QRCode from 'qrcode';
 import readXlsxFile from 'read-excel-file';
 import { useEffect, useMemo, useState, type FormEvent } from 'react';
 import { toast } from 'sonner';
-import { COURSES, SUBJECTS, useStore, type Course, type Role, type Student } from '../lib/store';
+import { COURSES, SUBJECTS, defaultPassword, useStore, validEmail, type Course, type Gender, type Role, type Student, type StudentDetails } from '../lib/store';
 import { EventDialog, RecordedDialog } from './CalendarDialogs';
 import { CalendarImportDialog } from './CalendarImport';
 import { useUI } from '../lib/ui-state';
-import { cn } from '../lib/utils';
+import { cn, downloadCSV } from '../lib/utils';
 import { Badge, Button, Dialog, Field, Input, Progress, Segmented, Select, Skeleton } from './ui';
 
 export function Dialogs() {
@@ -77,10 +77,10 @@ function AddStudentsDialog() {
             { value: 'manual', label: <><PenLine className="size-3.5" /> Manual</> }, { value: 'excel', label: <><FileSpreadsheet className="size-3.5" /> Excel</> },
             { value: 'qr', label: <><QrCode className="size-3.5" /> QR code</> }, { value: 'code', label: <><KeyRound className="size-3.5" /> Academy code</> },
           ]} />
-          <Select aria-label="Batch" value={batchId} onChange={(e) => setBatchId(e.target.value)} className="ml-auto w-full sm:w-64">{active.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}</Select>
+          {method !== 'manual' && <Select aria-label="Batch" value={batchId} onChange={(e) => setBatchId(e.target.value)} className="ml-auto w-full sm:w-64">{active.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}</Select>}
         </div>
         <motion.div key={method} initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.25 }}>
-          {method === 'manual' && <ManualForm batchId={batchId} onDone={d.close} />}
+          {method === 'manual' && <ManualForm onDone={d.close} />}
           {method === 'excel' && <ExcelImport batchId={batchId} onDone={d.close} />}
           {method === 'qr' && <QrJoin batchId={batchId} />}
           {method === 'code' && <CodeJoin batchId={batchId} />}
@@ -90,36 +90,46 @@ function AddStudentsDialog() {
   );
 }
 
-function ManualForm({ batchId, onDone }: { batchId: string; onDone: () => void }) {
-  const { addStudent, academy, batches } = useStore();
-  const blank = { name: '', roll: '', phone: '', email: '' };
-  const [f, setF] = useState(blank);
+// The student fields, in the order the client gave them. The Excel template and export use the same order.
+export const STUDENT_COLUMNS = ['Student Name', 'DOB', 'Gender', 'Mobile Number', 'Email ID', 'Course', 'Batch', 'Parents Name', 'Parents Mobile Number', 'Admission Date'] as const;
+const todayIso = () => new Date().toISOString().slice(0, 10);
+type Form = StudentDetails & { course: Course; batchId: string; admissionDate: string };
+
+function ManualForm({ onDone }: { onDone: () => void }) {
+  const { addStudent, academy, batches, students } = useStore();
+  const active = batches.filter((b) => b.status === 'active');
+  const blank = (): Form => ({ name: '', dob: '', gender: 'Male', phone: '', email: '', course: 'CA Foundation', batchId: active.find((b) => b.course === 'CA Foundation')?.id ?? '', parentName: '', parentPhone: '', admissionDate: todayIso() });
+  const [f, setF] = useState<Form>(blank);
   const [done, setDone] = useState<{ student: Student; password: string } | null>(null);
-  const [error, setError] = useState('');
-  const set = (k: keyof typeof blank) => (e: { target: { value: string } }) => { setF({ ...f, [k]: e.target.value }); setError(''); };
+  const set = (p: Partial<Form>) => setF((x) => ({ ...x, ...p }));
+  const text = (k: keyof StudentDetails) => (e: { target: { value: string } }) => set({ [k]: e.target.value });
+  const taken = students.some((x) => x.loginId === f.email.trim().toLowerCase());
+  const ok = f.name.trim() && f.dob && f.phone.trim() && validEmail(f.email) && !taken && f.batchId && f.parentName.trim() && f.parentPhone.trim() && f.admissionDate;
+  const nextId = `PF${Math.max(10000, ...students.map((x) => +x.studentId.slice(2) || 0)) + 1}`;
   const submit = (e: FormEvent) => {
-    e.preventDefault();
-    const r = addStudent({ name: f.name.trim(), roll: f.roll.trim(), batchId, phone: f.phone.trim(), email: f.email.trim(), joinedVia: 'manual' });
-    if ('error' in r) { setError(r.error); return; }
+    e.preventDefault(); if (!ok) return;
+    const { course: _c, ...st } = f;
+    const r = addStudent({ ...st, name: f.name.trim(), email: f.email.trim(), phone: f.phone.trim(), parentName: f.parentName.trim(), parentPhone: f.parentPhone.trim(), joinedVia: 'manual' });
+    if ('error' in r) { toast.error(r.error); return; }
     setDone(r);
   };
   if (done) {
-    const text = `${academy.name || 'Parallax Flow'}\nLogin ID: ${done.student.loginId}\nTemporary password: ${done.password}`;
+    const share = `${academy.name || 'Parallax Flow'}\nStudent ID: ${done.student.studentId}\nLogin ID: ${done.student.loginId}\nPassword: ${done.password}`;
     return (
       <div className="space-y-4">
         <div className="rounded-2xl bg-subtle p-5">
           <div className="mb-3 flex items-center gap-2"><Badge tone="pop">Login created</Badge><span className="text-sm font-semibold">{done.student.name}</span></div>
           <dl className="grid grid-cols-[auto_1fr] gap-x-6 gap-y-2 text-sm">
             <dt className="text-muted">Student ID</dt><dd className="font-mono">{done.student.studentId}</dd>
-            <dt className="text-muted">Login ID</dt><dd className="font-mono">{done.student.loginId}</dd>
-            <dt className="text-muted">Temporary password</dt><dd className="font-mono">{done.password}</dd>
+            <dt className="text-muted">Login ID</dt><dd className="break-all font-mono">{done.student.loginId}</dd>
+            <dt className="text-muted">Password</dt><dd className="font-mono">{done.password}</dd>
             <dt className="text-muted">Batch</dt><dd>{batches.find((b) => b.id === done.student.batchId)?.name}</dd>
           </dl>
         </div>
-        <p className="text-xs text-muted">The password is shown only once. The student picks their own on first sign-in.</p>
+        <p className="text-xs text-muted">Default password: first 4 letters of the name @ year of birth. The student can change it in the app.</p>
         <div className="flex justify-end gap-2">
-          <Button onClick={() => navigator.clipboard?.writeText(text).then(() => toast.success('Copied'), () => toast('Select the details and copy them'))}><Copy /> Copy</Button>
-          <Button onClick={() => { setF(blank); setDone(null); }}>Add another</Button>
+          <Button onClick={() => navigator.clipboard?.writeText(share).then(() => toast.success('Copied'), () => toast('Select the details and copy them'))}><Copy /> Copy</Button>
+          <Button onClick={() => { setF(blank()); setDone(null); }}>Add another</Button>
           <Button variant="primary" onClick={onDone}>Done</Button>
         </div>
       </div>
@@ -127,79 +137,112 @@ function ManualForm({ batchId, onDone }: { batchId: string; onDone: () => void }
   }
   return (
     <form onSubmit={submit} className="grid gap-4 sm:grid-cols-2">
-      <Field label="Full name" htmlFor="as-name"><Input id="as-name" autoFocus value={f.name} onChange={set('name')} /></Field>
-      <Field label="Roll number" htmlFor="as-roll" hint={error && <span className="text-bad">{error}</span>}><Input id="as-roll" value={f.roll} onChange={set('roll')} /></Field>
-      <Field label="Mobile" htmlFor="as-ph" optional><Input id="as-ph" inputMode="tel" value={f.phone} onChange={set('phone')} /></Field>
-      <Field label="Email" htmlFor="as-em" optional><Input id="as-em" type="email" value={f.email} onChange={set('email')} /></Field>
-      <div className="flex justify-end sm:col-span-2"><Button type="submit" variant="primary" disabled={!f.name.trim() || !f.roll.trim() || !batchId}>Create login</Button></div>
+      <Field label="Student name" htmlFor="as-name"><Input id="as-name" autoFocus value={f.name} onChange={text('name')} /></Field>
+      <Field label="Date of birth" htmlFor="as-dob"><Input id="as-dob" type="date" max={todayIso()} value={f.dob} onChange={text('dob')} /></Field>
+      <Field label="Gender"><Segmented value={f.gender} onChange={(g: Gender) => set({ gender: g })} options={(['Male', 'Female', 'Other'] as const).map((g) => ({ value: g, label: g }))} /></Field>
+      <Field label="Mobile number" htmlFor="as-ph"><Input id="as-ph" inputMode="tel" value={f.phone} onChange={text('phone')} placeholder="+91" /></Field>
+      <Field label="Email ID" htmlFor="as-em" className="sm:col-span-2" hint={taken ? <span className="text-bad">Another student already uses this email.</span> : f.email && !validEmail(f.email) ? <span className="text-bad">Enter a valid email.</span> : 'This is also the student’s login ID.'}>
+        <Input id="as-em" type="email" value={f.email} onChange={text('email')} />
+      </Field>
+      <Field label="Course" htmlFor="as-course"><Select id="as-course" value={f.course} onChange={(e) => { const c = e.target.value as Course; set({ course: c, batchId: active.find((b) => b.course === c)?.id ?? '' }); }}>{COURSES.map((c) => <option key={c}>{c}</option>)}</Select></Field>
+      <Field label="Batch" htmlFor="as-batch"><Select id="as-batch" value={f.batchId} onChange={(e) => set({ batchId: e.target.value })}>{active.filter((b) => b.course === f.course).map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}</Select></Field>
+      <Field label="Parent’s name" htmlFor="as-pn"><Input id="as-pn" value={f.parentName} onChange={text('parentName')} /></Field>
+      <Field label="Parent’s mobile number" htmlFor="as-pp"><Input id="as-pp" inputMode="tel" value={f.parentPhone} onChange={text('parentPhone')} placeholder="+91" /></Field>
+      <Field label="Admission date" htmlFor="as-ad"><Input id="as-ad" type="date" value={f.admissionDate} onChange={(e) => set({ admissionDate: e.target.value })} /></Field>
+      <div className="rounded-xl bg-subtle p-3 text-xs">
+        <div className="mb-1 font-semibold">Created automatically</div>
+        <div className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-0.5 text-muted">
+          <span>Student ID</span><span className="font-mono text-fg">{nextId}</span>
+          <span>Login ID</span><span className="truncate font-mono text-fg">{f.email.trim().toLowerCase() || 'the email'}</span>
+          <span>Password</span><span className="font-mono text-fg">{f.name.trim() && f.dob ? defaultPassword(f.name, f.dob) : 'Name@Year'}</span>
+        </div>
+      </div>
+      <div className="flex justify-end sm:col-span-2"><Button type="submit" variant="primary" disabled={!ok}>Create login</Button></div>
     </form>
   );
 }
 
-type Row = { name: string; roll: string; phone: string; email: string; batch: string };
+// ---------- Excel import: same columns as the form ----------
+type Row = StudentDetails & { course: string; batch: string; admissionDate: string };
+const norm = (h: string) => h.toLowerCase().replace(/[^a-z]/g, '');
+const HEAD: Record<keyof Row, string[]> = {
+  name: ['studentname', 'name'], dob: ['dob', 'dateofbirth'], gender: ['gender'], phone: ['mobilenumber', 'mobile', 'mobileno', 'phone'], email: ['emailid', 'email'],
+  course: ['course'], batch: ['batch'], parentName: ['parentsname', 'parentname'], parentPhone: ['parentsmobilenumber', 'parentmobilenumber', 'parentsmobile', 'parentmobile'], admissionDate: ['admissiondate', 'dateofjoining'],
+};
+/** Excel dates arrive as Date objects; typed dates may be dd-mm-yyyy or dd/mm/yyyy. Everything becomes yyyy-mm-dd. */
+const toIso = (v: unknown) => {
+  if (v instanceof Date) return v.toISOString().slice(0, 10);
+  const t = String(v ?? '').trim(), m = t.match(/^(\d{1,2})[-/.](\d{1,2})[-/.](\d{4})$/);
+  return m ? `${m[3]}-${m[2].padStart(2, '0')}-${m[1].padStart(2, '0')}` : /^\d{4}-\d{2}-\d{2}/.test(t) ? t.slice(0, 10) : '';
+};
+const toGender = (v: string): Gender => (/^f/i.test(v) ? 'Female' : /^m/i.test(v) ? 'Male' : 'Other');
+function toRows(table: unknown[][]): Row[] {
+  if (!table.length) return [];
+  const head = table[0].map((h) => norm(String(h ?? '')));
+  const hasHeader = head.some((h) => HEAD.name.includes(h));
+  const keys = Object.keys(HEAD) as (keyof Row)[];
+  const at = (k: keyof Row) => (hasHeader ? head.findIndex((h) => HEAD[k].includes(h)) : keys.indexOf(k));
+  return (hasHeader ? table.slice(1) : table).map((r) => {
+    const get = (k: keyof Row) => { const i = at(k); return i >= 0 ? r[i] : ''; };
+    const str = (k: keyof Row) => String(get(k) ?? '').trim();
+    return { name: str('name'), dob: toIso(get('dob')), gender: toGender(str('gender')), phone: str('phone'), email: str('email'), course: str('course'), batch: str('batch'), parentName: str('parentName'), parentPhone: str('parentPhone'), admissionDate: toIso(get('admissionDate')) || todayIso() };
+  }).filter((r) => r.name);
+}
 function parseCsv(text: string): string[][] {
   return text.split(/\r?\n/).filter((l) => l.trim()).map((l) => l.split(',').map((c) => c.trim().replace(/^"|"$/g, '')));
 }
-function toRows(table: string[][]): Row[] {
-  if (!table.length) return [];
-  const head = table[0].map((h) => String(h).toLowerCase());
-  const col = (...names: string[]) => head.findIndex((h) => names.some((n) => h.includes(n)));
-  const ci = { name: col('name'), roll: col('roll', 'id'), phone: col('mobile', 'phone'), email: col('mail'), batch: col('batch') };
-  const hasHeader = ci.name >= 0;
-  const rows = hasHeader ? table.slice(1) : table;
-  return rows.map((r) => ({
-    name: String(r[hasHeader ? ci.name : 0] ?? '').trim(), roll: String(r[hasHeader ? ci.roll : 1] ?? '').trim(),
-    phone: String(r[hasHeader ? ci.phone : 2] ?? '').trim(), email: String(r[hasHeader ? ci.email : 3] ?? '').trim(), batch: hasHeader && ci.batch >= 0 ? String(r[ci.batch] ?? '').trim() : '',
-  })).filter((r) => r.name);
-}
 
 function ExcelImport({ batchId, onDone }: { batchId: string; onDone: () => void }) {
-  const { addStudents, batches } = useStore();
+  const { addStudents, batches, students } = useStore();
   const [file, setFile] = useState<File | null>(null);
   const [rows, setRows] = useState<Row[]>([]);
   const [err, setErr] = useState('');
   const load = async (f: File) => {
     setFile(f); setErr('');
     try {
-      const table = f.name.toLowerCase().endsWith('.csv') ? parseCsv(await f.text()) : (await readXlsxFile(f)).map((r) => r.map((c) => (c == null ? '' : String(c))));
+      const table: unknown[][] = f.name.toLowerCase().endsWith('.csv') ? parseCsv(await f.text()) : await readXlsxFile(f);
       const parsed = toRows(table);
-      if (!parsed.length) setErr('No students found. The first row should be headings: Name, Roll number, Mobile, Email, Batch.');
+      if (!parsed.length) setErr(`No students found. The first row should be the headings: ${STUDENT_COLUMNS.join(', ')}.`);
       setRows(parsed);
     } catch { setErr('This file couldn’t be read. Save it as .xlsx or .csv and try again.'); setRows([]); }
   };
-  const missingRoll = rows.filter((r) => !r.roll).length;
+  // Batch by name; if it's missing, the course's first active batch; otherwise the batch picked above.
+  const batchFor = (r: Row) => batches.find((b) => b.name.toLowerCase() === r.batch.toLowerCase())?.id
+    || batches.find((b) => b.status === 'active' && r.course && b.course.toLowerCase() === r.course.toLowerCase())?.id || batchId;
+  const problem = (r: Row) => (!validEmail(r.email) ? 'Email missing or invalid' : students.some((x) => x.loginId === r.email.toLowerCase()) ? 'Email already used' : !r.dob ? 'Date of birth missing' : '');
+  const ready = rows.filter((r) => !problem(r));
   const doImport = () => {
-    const byName = new Map(batches.map((b) => [b.name.toLowerCase(), b.id]));
-    const res = addStudents(rows.filter((r) => r.roll).map((r) => ({ name: r.name, roll: r.roll, phone: r.phone, email: r.email, batchId: byName.get(r.batch.toLowerCase()) || batchId, joinedVia: 'excel' as const })));
-    toast.success(`${res.added} students added`, { description: res.skipped ? `${res.skipped} skipped: roll number already used` : undefined });
+    const res = addStudents(ready.map(({ course: _c, batch: _b, ...r }) => ({ ...r, batchId: batchFor({ ...r, course: _c, batch: _b }), joinedVia: 'excel' as const })));
+    toast.success(`${res.added} ${res.added === 1 ? 'student' : 'students'} added`, { description: `Logins created. Passwords follow the rule Name@Year.${res.skipped ? ` ${res.skipped} skipped: email already used.` : ''}` });
     onDone();
   };
-  const template = () => {
-    const csv = 'Name,Roll number,Mobile,Email,Batch\nAarav Kulkarni,INT-0101,+91 98xxxxxx01,aarav@example.com,\n';
-    navigator.clipboard?.writeText(csv).then(() => toast.success('Template copied', { description: 'Paste it into Excel and save as .xlsx or .csv' }), () => toast(csv));
-  };
+  const template = () => void downloadCSV('students-template.csv', [[...STUDENT_COLUMNS], ['Aarav Kulkarni', '2004-06-15', 'Male', '+91 98000 00001', 'aarav@example.com', 'CA Foundation', '', 'Ramesh Kulkarni', '+91 98000 00002', todayIso()]])
+    .then((ok) => ok && toast.success('Template downloaded', { description: 'Fill one student per row, then import it here.' }));
   return (
     <div className="space-y-4">
       <label className="flex cursor-pointer flex-col items-center gap-2 rounded-2xl border-2 border-dashed border-border-strong bg-subtle px-4 py-8 text-center transition hover:border-fg/40">
         {file ? <FileSpreadsheet className="size-6" /> : <Upload className="size-6 text-muted" />}
         <span className="text-sm font-semibold">{file ? file.name : 'Choose an Excel or CSV file'}</span>
-        <span className="text-xs text-muted">Columns: Name, Roll number, Mobile, Email, Batch (optional; otherwise the batch above)</span>
+        <span className="max-w-md text-xs text-muted">Columns: {STUDENT_COLUMNS.join(', ')}. If Batch is empty, the course’s first batch (or the one above) is used.</span>
         <input id="im-file" type="file" accept=".xlsx,.csv" className="sr-only" onChange={(e) => e.target.files?.[0] && load(e.target.files[0])} />
       </label>
       {err && <p className="text-xs text-bad">{err}</p>}
       {rows.length > 0 && (
         <div className="overflow-hidden rounded-2xl ring-1 ring-border">
-          <div className="flex items-center justify-between bg-subtle px-4 py-2 text-xs"><span className="font-semibold">{rows.length} rows found</span>{missingRoll > 0 && <span className="text-warn">{missingRoll} without a roll number will be skipped</span>}</div>
-          <div className="max-h-48 overflow-y-auto">
-            <table className="w-full text-xs"><tbody>{rows.slice(0, 50).map((r, i) => (
-              <tr key={i} className="border-t border-border"><td className="px-4 py-2 font-medium">{r.name}</td><td className="px-4 py-2 font-mono">{r.roll || '—'}</td><td className="px-4 py-2 text-muted">{r.batch || batches.find((b) => b.id === batchId)?.name}</td></tr>
-            ))}</tbody></table>
+          <div className="flex items-center justify-between bg-subtle px-4 py-2 text-xs"><span className="font-semibold">{rows.length} rows found · {ready.length} ready</span>{rows.length > ready.length && <span className="text-warn">{rows.length - ready.length} will be skipped</span>}</div>
+          <div className="max-h-56 overflow-auto">
+            <table className="w-full text-xs"><thead className="text-left text-faint"><tr><th className="px-4 py-1.5 font-medium">Name</th><th className="px-2 py-1.5 font-medium">Login ID</th><th className="px-2 py-1.5 font-medium">Password</th><th className="px-4 py-1.5 font-medium">Batch</th></tr></thead>
+              <tbody>{rows.slice(0, 50).map((r, i) => { const p = problem(r); return (
+                <tr key={i} className="border-t border-border"><td className="px-4 py-2 font-medium">{r.name}</td>
+                  {p ? <td colSpan={3} className="px-2 py-2 text-bad">{p}</td> : <><td className="px-2 py-2 font-mono">{r.email.toLowerCase()}</td><td className="px-2 py-2 font-mono">{defaultPassword(r.name, r.dob)}</td><td className="px-4 py-2 text-muted">{batches.find((b) => b.id === batchFor(r))?.name}</td></>}
+                </tr>
+              ); })}</tbody></table>
           </div>
         </div>
       )}
       <div className="flex flex-wrap justify-between gap-2">
-        <Button onClick={template}><Copy /> Copy template</Button>
-        <Button variant="primary" disabled={!rows.some((r) => r.roll)} onClick={doImport}>Import {rows.filter((r) => r.roll).length || ''} students</Button>
+        <Button onClick={template}><Download /> Download template</Button>
+        <Button variant="primary" disabled={!ready.length} onClick={doImport}>Import {ready.length || ''} {ready.length === 1 ? 'student' : 'students'}</Button>
       </div>
     </div>
   );

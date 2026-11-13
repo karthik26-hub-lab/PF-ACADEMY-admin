@@ -19,10 +19,14 @@ export const ORDER_STATUS: Record<OrderStatus, { label: string; tone: 'neutral' 
   failed: { label: 'Failed', tone: 'bad' }, cancelled: { label: 'Cancelled', tone: 'neutral' }, 'partial-refund': { label: 'Partially refunded', tone: 'warn' }, refunded: { label: 'Refunded', tone: 'neutral' },
 };
 
-export interface PfProduct { id: string; title: string; type: PfType; course: Course; subject: string; chapters: string[]; about: string; price: number; updatedAt: number; cycles: number; preview: string[] }
+export interface PfProduct { id: string; title: string; type: PfType; course: Course; subject: string; chapters: string[]; about: string; price: number; updatedAt: number; cycles: number; preview: string[]; pages?: number; art?: string }
 export interface Line { productId: string; qty: number; amount: number }
 export interface Billing { academy: string; gstin: string; address: string; contact: string; email: string; phone: string; method: string }
-export interface Purchase { id: string; at: number; lines: Line[]; subtotal: number; discount: number; gst: number; total: number; status: OrderStatus; method: string; txn: string; billing?: Billing }
+/** A payment method remembered after a successful payment. Cards are kept by the gateway; we only hold the last four digits. */
+export type PayKind = 'upi' | 'card' | 'netbanking';
+export interface SavedMethod { id: string; kind: PayKind; label: string; lastUsed: number }
+export const PAY_KIND: Record<PayKind, string> = { upi: 'UPI', card: 'Card', netbanking: 'Net banking' };
+export interface Purchase { id: string; at: number; lines: Line[]; subtotal: number; discount: number; total: number; status: OrderStatus; method: string; txn: string; billing?: Billing }
 export interface Cycle { n: number; startedAt: number; completedAt?: number; students: string[] }
 export interface LogEntry { at: number; action: 'allocated' | 'revoked'; studentIds: string[] }
 export interface Licence { id: string; productId: string; orderId: string; capacity: number; maxCycles: number; activatedAt: number; expiresAt: number; cycles: Cycle[]; active: Record<string, number>; log: LogEntry[] }
@@ -37,18 +41,18 @@ export interface MyProduct {
   items?: string[];                                     // bundles: the products inside
 }
 export interface Offer { id: string; name: string; code: string; auto: boolean; kind: 'percent' | 'fixed'; value: number; products: string[]; minOrder?: number; maxDiscount?: number; limit: number; perStudent: number; from: string; to: string; who: MyProduct['who']; whoIds: string[]; active: boolean; used: number }
-export interface Sale { id: string; at: number; studentId: string; lines: Line[]; subtotal: number; discount: number; gst: number; total: number; status: OrderStatus; method: string; txn: string; refund: number }
-export interface Rules { gst: number; validityMonths: number; cycles: number; payout: 'parallax' | 'academy'; commission: number; addonPrice: number }
+export interface Sale { id: string; at: number; studentId: string; lines: Line[]; subtotal: number; discount: number; total: number; status: OrderStatus; method: string; txn: string; refund: number }
+export interface Rules { validityMonths: number; cycles: number; payout: 'parallax' | 'academy'; commission: number; addonPrice: number }
 
 const DAY = 86400e3;
-export const DEFAULT_RULES: Rules = { gst: 18, validityMonths: 12, cycles: 3, payout: 'parallax', commission: 15, addonPrice: 2999 };
+export const DEFAULT_RULES: Rules = { validityMonths: 12, cycles: 3, payout: 'parallax', commission: 15, addonPrice: 2999 };
 
 // ---------- Helpers ----------
 /** Capacity must be a positive whole number: no decimals, fractions, zero or negatives. */
 export const validCapacity = (raw: string) => /^[1-9]\d*$/.test(raw.trim());
-export const withGst = (subtotal: number, discount: number, rules: Rules) => {
-  const taxable = Math.max(0, subtotal - discount), gst = Math.round((taxable * rules.gst) / 100);
-  return { subtotal, discount, gst, total: taxable + gst };
+/** Prices are final: the total is the subtotal less any discount (no GST is added). */
+export const orderTotal = (subtotal: number, discount = 0) => {
+  return { subtotal, discount, total: Math.max(0, subtotal - discount) };
 };
 export const current = (l: Licence) => l.cycles[l.cycles.length - 1];
 export const licenceStatus = (l: Licence) => (Date.now() > l.expiresAt ? 'Expired' : 'Active');
@@ -98,15 +102,22 @@ function allocate(l: Licence, ids: string[], now: number): { licence: Licence; b
 const ago = (d: number) => Date.now() - d * DAY;
 const pf = (id: string, title: string, type: PfType, course: Course, subject: string, chapters: string[], price: number, about: string, updated: number): PfProduct =>
   ({ id, title, type, course, subject, chapters, price, about, updatedAt: ago(updated), cycles: 3, preview: [`Sample from ${chapters[0]}`, 'Page 1 of the contents', 'One worked example with solution'] });
+/** A Parallax Flow "Ignite" visual-notes title: its cover and sample pages come from assets/store/<art>-<page>.webp. */
+const ignite = (id: string, title: string, type: PfType, subject: string, chapters: string[], price: number, about: string, updated: number, pages: number, art: string): PfProduct =>
+  ({ ...pf(id, title, type, 'CA Inter', subject, chapters, price, about, updated), pages, art });
 const CATALOG: PfProduct[] = [
   pf('p1', 'AS 10 Question Bank', 'qbank', 'CA Inter', 'Accounting', ['AS 10 – Property, Plant & Equipment'], 10, 'Every past-paper and RTP question on AS 10, with ICAI-style answers.', 6),
   pf('p2', 'AS 11 Question Bank', 'qbank', 'CA Inter', 'Accounting', ['AS 11 – Foreign Exchange'], 10, 'Practice questions on foreign exchange transactions.', 12),
-  pf('p3', 'Ignite – Accounts', 'study', 'CA Inter', 'Accounting', ['Partnership', 'Company Accounts', 'Cash Flow Statements'], 10, 'Detailed chapter material for Advanced Accounting.', 3),
-  pf('p4', 'GST Quick Revise', 'revision', 'CA Final', 'Indirect Tax Laws', ['Supply', 'Input Tax Credit', 'Place of Supply'], 8, 'Quick revision notes for the last two weeks before the exam.', 20),
+  ignite('p3', 'Audit Strategy, Planning and Programme', 'study', 'Auditing & Ethics', ['Audit strategy and plan', 'SA 300 – Planning an audit', 'Audit programme'], 12, 'The chapter as visual notes: strategy, plan and programme, with a chapter roadmap, comparison tables and key takeaways.', 3, 28, 'audit-strategy'),
+  ignite('p4', 'Supply under GST', 'revision', 'Taxation', ['Section 7 – Meaning of supply', 'Schedule I – Supply without consideration', 'Schedule II – Goods or services'], 8, 'One-page Ignite revision sheets on the scope of supply, with circulars and worked examples.', 20, 7, 'gst-supply'),
   pf('p5', 'Audit Test Series', 'tests', 'CA Inter', 'Auditing & Ethics', ['Standards on Auditing', 'Audit Report'], 15, 'Subject-wise tests with model answers and marking.', 9),
-  pf('p6', 'Costing Study Material', 'study', 'CA Inter', 'Cost & Management Accounting', ['Marginal Costing', 'Standard Costing', 'Budgetary Control'], 12, 'Full chapter notes with illustrations.', 30),
+  ignite('p6', 'Nature, Scope and Objectives of Audit', 'study', 'Auditing & Ethics', ['Origin and history of auditing', 'Meaning, nature and aspects of audit', 'Relationship with other disciplines', 'Objectives of the auditor (SA 200)'], 12, 'The full chapter as visual notes, from the history of auditing to the auditor’s objectives under SA 200.', 4, 34, 'audit-nature'),
   pf('p7', 'Company Law Question Bank', 'qbank', 'CA Foundation', 'Corporate & Other Laws', ['Share Capital', 'Board Meetings'], 9, 'MCQs and case questions with explanations.', 15),
   pf('p8', 'Foundation Combo', 'bundle', 'CA Foundation', 'All subjects', ['All papers'], 25, 'Question banks and revision material for all four papers.', 5),
+  ignite('p9', 'Foundations of Audit', 'study', 'Auditing & Ethics', ['Why the world needs audit', 'What exactly is an audit', 'How an audit works', 'The auditor and the objective of audit'], 8, 'A visual starter on why audits exist and how they work, before the detailed chapters.', 2, 9, 'audit-foundations'),
+  ignite('p10', 'Nature, Scope and Objective of Audit – Ignite', 'revision', 'Auditing & Ethics', ['Meaning of audit', 'Books of account and financial statements', 'Financial reporting frameworks', 'Misstatement', 'Objectives under SA 200'], 6, 'The whole chapter revised in seven Ignite pages.', 8, 7, 'audit-nature-ignite'),
+  ignite('p11', 'SA 230 – Audit Documentation', 'study', 'Auditing & Ethics', ['Meaning and objective', 'Nature and purpose', 'Form, content and extent', 'Audit file and assembly'], 10, 'Visual notes on SA 230: what to document, why it matters, and how the audit file is put together.', 1, 15, 'sa-230'),
+  ignite('p12', 'Introduction to Strategic Management', 'study', 'Strategic Management', ['Management', 'Strategy', 'Strategic management', 'Strategic levels in organisations'], 8, 'Ignite visual notes for the opening chapter of Strategic Management.', 10, 7, 'strategic-management'),
 ];
 
 function sample() {
@@ -122,7 +133,7 @@ function sample() {
   const lic2: Licence = { id: 'l2', productId: 'p3', orderId: 'PF-P002', capacity: 300, maxCycles: 3, activatedAt: ago(40), expiresAt: ago(40) + 365 * DAY, cycles: [{ n: 1, startedAt: ago(40), students: c3 }], active: Object.fromEntries(c3.map((s) => [s, ago(40)])), log: [{ at: ago(40), action: 'allocated', studentIds: c3 }] };
   const order = (id: string, d: number, lines: [string, number][], status: OrderStatus): Purchase => {
     const ls = lines.map(([productId, qty]) => ({ productId, qty, amount: qty * CATALOG.find((p) => p.id === productId)!.price }));
-    return { id, at: ago(d), lines: ls, ...withGst(ls.reduce((a, l) => a + l.amount, 0), 0, DEFAULT_RULES), status, method: 'UPI', txn: status === 'completed' ? `TXN${id.slice(-3)}84Q` : '' };
+    return { id, at: ago(d), lines: ls, ...orderTotal(ls.reduce((a, l) => a + l.amount, 0)), status, method: 'UPI', txn: status === 'completed' ? `TXN${id.slice(-3)}84Q` : '' };
   };
   const purchases = [
     order('PF-P001', 130, [['p1', 100]], 'completed'), order('PF-P002', 40, [['p3', 300]], 'completed'),
@@ -149,7 +160,7 @@ function sample() {
   ];
   const sales: Sale[] = Array.from({ length: 48 }, (_, i) => {
     const p = mine[[0, 1, 3, 4, 5, 6][i % 6]], st: OrderStatus = i % 17 === 5 ? 'pending' : i % 23 === 7 ? 'refunded' : i % 29 === 9 ? 'failed' : 'completed';
-    const b = withGst(p.price, 0, DEFAULT_RULES);
+    const b = orderTotal(p.price);
     return { id: `ORD${String(i + 1).padStart(3, '0')}`, at: ago(Math.floor((1 - Math.sqrt(1 - i / 48)) * 170)), studentId: `s${i * 37 + 3}`, lines: [{ productId: p.id, qty: 1, amount: p.price }], ...b, status: st, method: i % 3 ? 'UPI' : 'Card', txn: `pay_${i}x7Q`, refund: st === 'refunded' ? b.total : 0 };
   });
   const offers: Offer[] = [{ id: 'o1', name: 'Diwali Offer', code: 'DIWALI20', auto: false, kind: 'percent', value: 20, products: [], limit: 100, perStudent: 1, from: '2026-10-25', to: '2026-11-15', who: 'all', whoIds: [], active: true, used: 37 }];
@@ -159,9 +170,11 @@ function sample() {
 // ---------- Store ----------
 interface Shop {
   catalog: PfProduct[]; cart: Line[]; purchases: Purchase[]; licences: Licence[];
-  mine: MyProduct[]; offers: Offer[]; sales: Sale[]; rules: Rules; addon: boolean;
+  mine: MyProduct[]; offers: Offer[]; sales: Sale[]; rules: Rules; addon: boolean; methods: SavedMethod[];
   setCart: (productId: string, qty: number) => void;
-  checkout: (billing: Billing) => string;
+  /** Pays for the cart. `pay` is the method used; `save` remembers it for next time. */
+  checkout: (billing: Billing, pay: { kind: PayKind; label: string }, save: boolean) => string;
+  removeMethod: (id: string) => void;
   allocate: (licenceId: string, ids: string[]) => string[];
   revoke: (licenceId: string, ids: string[]) => void;
   saveMine: (p: Omit<MyProduct, 'id' | 'updatedAt'>, id?: string) => string;
@@ -176,18 +189,23 @@ const swap = <T extends { id: string }>(list: T[], id: string, fn: (x: T) => T) 
 
 export const useShop = create<Shop>()(persist((set, get) => ({
   catalog: CATALOG, cart: [], rules: DEFAULT_RULES, addon: false, ...sample(),
+  methods: [{ id: 'm-nb', kind: 'netbanking', label: 'HDFC Bank', lastUsed: Date.now() - 11 * DAY }, { id: 'm-upi', kind: 'upi', label: 'northstar@okaxis', lastUsed: Date.now() - 40 * DAY }],
   setCart: (productId, qty) => set((s) => {
     const price = s.catalog.find((p) => p.id === productId)!.price, rest = s.cart.filter((l) => l.productId !== productId);
     return { cart: qty > 0 ? [...rest, { productId, qty, amount: qty * price }] : rest };
   }),
   // Sample checkout: payment is marked successful, then one licence per product is created.
-  checkout: (billing) => {
+  checkout: (billing, pay, save) => {
     const s = get(), now = Date.now(), id = `PF-P${String(s.purchases.length + 1).padStart(3, '0')}`;
-    const order: Purchase = { id, at: now, lines: s.cart, ...withGst(s.cart.reduce((a, l) => a + l.amount, 0), 0, s.rules), status: 'completed', method: billing.method, txn: `TXN${uid().toUpperCase()}`, billing };
+    billing = { ...billing, method: `${PAY_KIND[pay.kind]} · ${pay.label}` };
+    const order: Purchase = { id, at: now, lines: s.cart, ...orderTotal(s.cart.reduce((a, l) => a + l.amount, 0)), status: 'completed', method: billing.method, txn: `TXN${uid().toUpperCase()}`, billing };
     const licences = s.cart.map((l): Licence => ({ id: uid(), productId: l.productId, orderId: id, capacity: l.qty, maxCycles: s.rules.cycles, activatedAt: now, expiresAt: now + s.rules.validityMonths * 30 * DAY, cycles: [{ n: 1, startedAt: now, students: [] }], active: {}, log: [] }));
-    set({ purchases: [order, ...s.purchases], licences: [...licences, ...s.licences], cart: [] });
+    const known = s.methods.find((m) => m.kind === pay.kind && m.label === pay.label);
+    const methods = known ? swap(s.methods, known.id, (m) => ({ ...m, lastUsed: now })) : save ? [{ id: uid(), ...pay, lastUsed: now }, ...s.methods] : s.methods;
+    set({ purchases: [order, ...s.purchases], licences: [...licences, ...s.licences], cart: [], methods });
     return id;
   },
+  removeMethod: (id) => set((s) => ({ methods: s.methods.filter((m) => m.id !== id) })),
   allocate: (licenceId, ids) => {
     const l = get().licences.find((x) => x.id === licenceId)!, r = allocate(l, ids, Date.now());
     set((s) => ({ licences: swap(s.licences, licenceId, () => r.licence) }));
@@ -204,7 +222,7 @@ export const useShop = create<Shop>()(persist((set, get) => ({
   refund: (saleId) => set((s) => ({ sales: swap(s.sales, saleId, (x) => ({ ...x, status: 'refunded', refund: x.total })) })),
   setRules: (r) => set((s) => ({ rules: { ...s.rules, ...r } })),
   unlock: () => set({ addon: true }),
-}), { name: 'pf-shop-v7', partialize: ({ cart, purchases, licences, mine, offers, sales, rules, addon }) => ({ cart, purchases, licences, mine, offers, sales, rules, addon }) as Partial<Shop> }));
+}), { name: 'pf-shop-v9', partialize: ({ cart, purchases, licences, mine, offers, sales, rules, addon, methods }) => ({ cart, purchases, licences, mine, offers, sales, rules, addon, methods }) as Partial<Shop> }));
 
 /** Sales from the academy's own store: total, split by kind, and per month for the last `months` months. */
 export function salesSummary(sales: Sale[], mine: MyProduct[], months = 6) {

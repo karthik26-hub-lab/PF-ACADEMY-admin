@@ -1,27 +1,28 @@
 import * as CM from '@radix-ui/react-context-menu';
 import { AnimatePresence, motion } from 'framer-motion';
-import { Check, ChevronLeft, ChevronRight, Columns3, Copy, Download, ExternalLink, Inbox, Layers, Minus, Search, Trash2, Upload, UserCheck, UserPlus, UserX, Users, Wallet, X } from 'lucide-react';
+import { Check, ChevronLeft, ChevronRight, Columns3, Copy, Download, ExternalLink, Inbox, Layers, Minus, Search, Smartphone, Trash2, Upload, UserCheck, UserPlus, UserX, Users, X } from 'lucide-react';
 import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { toast } from 'sonner';
 import { create } from 'zustand';
-import { Donut, Legend, Ring, Sparkline } from '../components/charts';
+import { Ring, Sparkline } from '../components/charts';
 import { Page } from '../components/layout/Page';
 import { Avatar, Badge, Button, Card, DropdownContent, DropdownItem, DropdownLabel, DropdownMenu, DropdownSeparator, DropdownTrigger, EmptyState, Input, Segmented, Select, Table, Tabs, Td, Th, btn } from '../components/ui';
 import { href, navigate } from '../lib/router';
-import { useStore, type Batch, type FeeStatus, type Student, type StudentStatus } from '../lib/store';
+import { COURSES, useStore, type Batch, type Course, type Student, type StudentStatus } from '../lib/store';
 import { useUI } from '../lib/ui-state';
 import { cn, downloadCSV, fmtDate, prefs } from '../lib/utils';
 
-export const FEE: Record<FeeStatus, { label: string; tone: 'pop' | 'warn' | 'bad' }> = { paid: { label: 'Paid', tone: 'pop' }, partial: { label: 'Partly paid', tone: 'warn' }, due: { label: 'Due', tone: 'bad' } };
+/** 10th Nov 2026 */
+export const joinDate = (iso: string) => { const d = new Date(iso), n = d.getDate(), th = n % 10 === 1 && n !== 11 ? 'st' : n % 10 === 2 && n !== 12 ? 'nd' : n % 10 === 3 && n !== 13 ? 'rd' : 'th'; return `${n}${th} ${d.toLocaleDateString('en-IN', { month: 'short' })} ${d.getFullYear()}`; };
 export const STATUS: Record<StudentStatus, { label: string; tone: 'ink' | 'neutral' | 'bad' }> = { active: { label: 'Active', tone: 'ink' }, inactive: { label: 'Inactive', tone: 'neutral' }, suspended: { label: 'Suspended', tone: 'bad' } };
 const PAGE = 25;
 
 // ---------- Column choice, remembered per viewer ----------
-const COLS = { batch: 'Batch', status: 'Status', fee: 'Fee', learning: 'Learning', avg: 'Avg score', trend: 'Trend', phone: 'Phone', admitted: 'Admission date' } as const;
+const COLS = { batch: 'Batch', status: 'Status', joined: 'Date of joining', learning: 'Learning', avg: 'Avg score', trend: 'Trend', email: 'Email' } as const;
 type Col = keyof typeof COLS;
 type ColState = Record<Col, boolean>;
-const COLS_KEY = 'pf-student-cols';
-const defaultCols: ColState = { batch: true, status: true, fee: true, learning: true, avg: true, trend: true, phone: false, admitted: false };
+const COLS_KEY = 'pf-student-cols-v2';
+const defaultCols: ColState = { batch: true, status: true, joined: true, learning: true, avg: true, trend: true, email: false };
 const useCols = create<{ cols: ColState; toggle: (c: Col) => void }>((set) => ({
   cols: prefs.get(COLS_KEY, defaultCols),
   toggle: (c) => set((s) => { const cols = { ...s.cols, [c]: !s.cols[c] }; prefs.set(COLS_KEY, cols); return { cols }; }),
@@ -48,8 +49,8 @@ export function ColumnPicker() {
 export function exportStudents(list: Student[], batches: Batch[], name = 'students') {
   const b = new Map(batches.map((x) => [x.id, x]));
   void downloadCSV(`${name}-${new Date().toISOString().slice(0, 10)}.csv`, [
-    ['Student ID', 'Name', 'Roll no.', 'Batch', 'Course', 'Phone', 'Email', 'Login ID', 'Status', 'Fee', 'Learning %', 'Avg score %', 'Admission date'],
-    ...list.map((s) => [s.studentId, s.name, s.roll, b.get(s.batchId)?.name ?? '', b.get(s.batchId)?.course ?? '', s.phone, s.email, s.loginId, STATUS[s.status].label, FEE[s.fee].label, s.progress, s.avgScore ?? '', s.admissionDate]),
+    ['Student ID', 'Student Name', 'DOB', 'Gender', 'Mobile Number', 'Email ID', 'Course', 'Batch', 'Parents Name', 'Parents Mobile Number', 'Admission Date', 'Status', 'Learning %', 'Avg score %'],
+    ...list.map((s) => [s.studentId, s.name, s.dob, s.gender, s.phone, s.email, b.get(s.batchId)?.course ?? '', b.get(s.batchId)?.name ?? '', s.parentName, s.parentPhone, s.admissionDate, STATUS[s.status].label, s.progress, s.avgScore ?? '']),
   ]).then((ok) => ok && toast.success(`Exported ${list.length.toLocaleString('en-IN')} students`, { description: 'Opens in Excel or Google Sheets.' }));
 }
 
@@ -85,7 +86,6 @@ function RowMenu({ s, children }: { s: Student; children: ReactNode }) {
           <CM.Item className={menuItem} onSelect={() => copy(s.loginId, 'Login ID')}><Copy /> Copy login ID</CM.Item>
           <CM.Item className={menuItem} onSelect={() => copy(s.phone, 'Phone number')}><Copy /> Copy phone</CM.Item>
           <CM.Separator className="-mx-1 my-1 h-px bg-border" />
-          {s.fee !== 'paid' && <CM.Item className={menuItem} onSelect={() => { update(s.id, { fee: 'paid' }); toast.success('Fee marked as paid'); }}><Wallet /> Mark fee paid</CM.Item>}
           {s.status === 'active'
             ? <CM.Item className={menuItem} onSelect={() => { update(s.id, { status: 'suspended' }); toast('Student suspended'); }}><UserX /> Suspend</CM.Item>
             : <CM.Item className={menuItem} onSelect={() => { update(s.id, { status: 'active' }); toast.success('Student is active again'); }}><UserCheck /> Make active</CM.Item>}
@@ -112,10 +112,6 @@ function BulkBar({ ids, total, onSelectAll, onClear }: { ids: string[]; total: n
         <DropdownContent className="max-h-72 w-72 overflow-y-auto" align="start">
           {batches.filter((b) => b.status === 'active').map((b) => <DropdownItem key={b.id} onSelect={() => apply({ batchId: b.id }, `${n} moved to ${b.name}`)}>{b.name}</DropdownItem>)}
         </DropdownContent>
-      </DropdownMenu>
-      <DropdownMenu>
-        <DropdownTrigger className={chip}><Wallet /> Fee</DropdownTrigger>
-        <DropdownContent align="start">{(Object.keys(FEE) as FeeStatus[]).map((f) => <DropdownItem key={f} onSelect={() => apply({ fee: f }, `Fee set to “${FEE[f].label}” for ${n}`)}>{FEE[f].label}</DropdownItem>)}</DropdownContent>
       </DropdownMenu>
       <DropdownMenu>
         <DropdownTrigger className={chip}><UserCheck /> Status</DropdownTrigger>
@@ -160,8 +156,8 @@ export function StudentTable({ students, hideBatch }: { students: Student[]; hid
         <thead><tr>
           <Th className="w-10 pr-0"><Tick state={pageState} onClick={togglePage} label="Select all on this page" /></Th>
           <Th>Student</Th>
-          {show('batch') && <Th>Batch</Th>}{show('phone') && <Th>Phone</Th>}{show('status') && <Th>Status</Th>}{show('fee') && <Th>Fee</Th>}
-          {show('learning') && <Th>Learning</Th>}{show('avg') && <Th className="text-right">Avg score</Th>}{show('admitted') && <Th>Admitted</Th>}{show('trend') && <Th className="hidden xl:table-cell">Trend</Th>}
+          {show('batch') && <Th>Batch</Th>}{show('email') && <Th>Email</Th>}{show('status') && <Th>Status</Th>}{show('joined') && <Th>Date of joining</Th>}
+          {show('learning') && <Th>Learning</Th>}{show('avg') && <Th className="text-right">Avg score</Th>}{show('trend') && <Th className="hidden xl:table-cell">Trend</Th>}
         </tr></thead>
         <tbody>
           {rows.map((s) => {
@@ -170,14 +166,13 @@ export function StudentTable({ students, hideBatch }: { students: Student[]; hid
               <RowMenu key={s.id} s={s}>
                 <tr className={cn('cursor-pointer transition-colors', on ? 'bg-subtle' : 'hover:bg-subtle/70')} onClick={() => navigate({ page: 'student', id: s.id })}>
                   <Td className="w-10 pr-0"><Tick state={on} onClick={() => toggle(s.id)} label={`Select ${s.name}`} /></Td>
-                  <Td><span className="flex items-center gap-3"><Avatar name={s.name} /><span className="min-w-0"><a href={href({ page: 'student', id: s.id })} onClick={(e) => e.stopPropagation()} className="block truncate font-semibold hover:underline">{s.name}</a><span className="font-mono text-2xs text-muted">{s.studentId} · {s.roll}</span></span></span></Td>
+                  <Td><span className="flex items-center gap-3"><Avatar name={s.name} /><span className="min-w-0"><a href={href({ page: 'student', id: s.id })} onClick={(e) => e.stopPropagation()} className="block truncate font-semibold hover:underline">{s.name}</a><span className="tnum text-2xs text-muted"><span className="font-mono">{s.studentId}</span> · {s.phone}</span></span></span></Td>
                   {show('batch') && <Td className="max-w-56 truncate text-xs text-muted">{bmap.get(s.batchId) ?? '—'}</Td>}
-                  {show('phone') && <Td className="tnum whitespace-nowrap text-xs text-muted">{s.phone}</Td>}
+                  {show('email') && <Td className="max-w-56 truncate text-xs text-muted">{s.email}</Td>}
                   {show('status') && <Td><Badge tone={STATUS[s.status].tone}>{STATUS[s.status].label}</Badge></Td>}
-                  {show('fee') && <Td><Badge tone={FEE[s.fee].tone}>{FEE[s.fee].label}</Badge></Td>}
+                  {show('joined') && <Td className="whitespace-nowrap text-xs">{joinDate(s.admissionDate)}</Td>}
                   {show('learning') && <Td><span className="flex items-center gap-2"><span className="h-1.5 w-20 overflow-hidden rounded-full hatch"><span className="block h-full rounded-full bg-fg" style={{ width: `${s.progress}%` }} /></span><span className="tnum text-2xs text-muted">{s.progress}%</span></span></Td>}
                   {show('avg') && <Td className="tnum text-right font-semibold">{s.avgScore == null ? '—' : `${s.avgScore}%`}</Td>}
-                  {show('admitted') && <Td className="whitespace-nowrap text-xs text-muted">{fmtDate(s.admissionDate)}</Td>}
                   {show('trend') && <Td className="hidden w-32 xl:table-cell">{s.trend.length > 1 ? <Sparkline values={s.trend} className="h-7" /> : <span className="text-2xs text-faint">—</span>}</Td>}
                 </tr>
               </RowMenu>
@@ -205,32 +200,81 @@ export function StudentTable({ students, hideBatch }: { students: Student[]; hid
 }
 
 // ---------- Directory page ----------
-const FILTERS_KEY = 'pf-student-filters';
-type Filters = { batch: string; status: 'all' | StudentStatus; fee: string };
+const FILTERS_KEY = 'pf-student-filters-v2';
+type Filters = { course: 'all' | Course; batch: string; status: 'all' | StudentStatus; phone: boolean };
+const NO_FILTERS: Filters = { course: 'all', batch: 'all', status: 'all', phone: false };
+const card = 'rounded-2xl bg-panel p-5 ring-1 ring-black/[0.04] dark:ring-white/[0.06]';
+
+/** Students per course, Foundation → Inter → Final. Clicking a course picks it in the tab below. */
+function CourseDistribution({ counts, onPick }: { counts: number[]; onPick: (c: Course) => void }) {
+  const max = Math.max(1, ...counts);
+  return (
+    <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.05 }} className={card}>
+      <div className="mb-3 text-xs font-semibold">Course distribution</div>
+      <div className="space-y-3">{COURSES.map((c, i) => (
+        <button key={c} type="button" onClick={() => onPick(c)} className="block w-full text-left">
+          <span className="mb-1 flex justify-between text-xs"><span className="text-muted">{c}</span><b className="tnum">{counts[i].toLocaleString('en-IN')}</b></span>
+          <span className="block h-2 overflow-hidden rounded-full hatch"><motion.span className="block h-full rounded-full bg-fg" initial={{ width: 0 }} animate={{ width: `${(counts[i] / max) * 100}%` }} transition={{ duration: 0.8 }} /></span>
+        </button>
+      ))}</div>
+    </motion.div>
+  );
+}
+
+/**
+ * Admissions for the current CA attempt against the previous one. CA exams sit in May and November, so each attempt
+ * takes the six months of admissions before it: the six months up to now are the next attempt, the six before that the last one.
+ */
+function AdmissionTrends({ students }: { students: Student[] }) {
+  const month = (back: number) => { const d = new Date(); d.setDate(1); d.setMonth(d.getMonth() - back); return d; };
+  const count = (d: Date) => students.filter((s) => { const a = new Date(s.admissionDate); return a.getMonth() === d.getMonth() && a.getFullYear() === d.getFullYear(); }).length;
+  const cur = [5, 4, 3, 2, 1, 0].map(month), prev = [11, 10, 9, 8, 7, 6].map(month);
+  const a = cur.map(count), b = prev.map(count), ta = a.reduce((x, y) => x + y, 0), tb = b.reduce((x, y) => x + y, 0);
+  const attempt = (end: Date) => { const d = new Date(end); do d.setMonth(d.getMonth() + 1); while (d.getMonth() !== 4 && d.getMonth() !== 10); return d.toLocaleDateString('en-IN', { month: 'short', year: 'numeric' }); };
+  const change = tb ? Math.round(((ta - tb) / tb) * 100) : 0, max = Math.max(1, ...a, ...b);
+  return (
+    <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }} className={card}>
+      <div className="flex items-start justify-between gap-2">
+        <div><div className="text-xs font-semibold">Admission trends</div><div className="text-2xs text-muted">{attempt(cur[5])} attempt vs {attempt(prev[5])} attempt</div></div>
+        <span className={cn('tnum rounded-full px-2 py-0.5 text-2xs font-bold', change >= 0 ? 'bg-pop text-pop-fg' : 'bg-subtle text-bad')}>{change >= 0 ? '+' : ''}{change}%</span>
+      </div>
+      <div className="mt-3 flex h-16 items-end gap-2">{a.map((v, i) => (
+        <div key={i} className="flex h-full flex-1 flex-col justify-end" title={`${cur[i].toLocaleDateString('en-IN', { month: 'short' })}: ${v} now, ${b[i]} last attempt`}>
+          <div className="flex h-full items-end gap-0.5">
+            <span className="flex-1 rounded-t-sm hatch" style={{ height: `${(b[i] / max) * 100}%` }} />
+            <span className="flex-1 rounded-t-sm bg-fg" style={{ height: `${(v / max) * 100}%` }} />
+          </div>
+          <span className="mt-1 text-center text-[10px] text-faint">{cur[i].toLocaleDateString('en-IN', { month: 'short' }).slice(0, 3)}</span>
+        </div>
+      ))}</div>
+      <div className="mt-2 flex gap-4 text-2xs text-muted"><span className="flex items-center gap-1.5"><i className="size-2 rounded-sm bg-fg" />This attempt <b className="tnum text-fg">{ta.toLocaleString('en-IN')}</b></span><span className="flex items-center gap-1.5"><i className="size-2 rounded-sm hatch ring-1 ring-border-strong" />Last attempt <b className="tnum text-fg">{tb.toLocaleString('en-IN')}</b></span></div>
+    </motion.div>
+  );
+}
 
 export function Students({ tab }: { tab: 'all' | 'requests' }) {
   const s = useStore();
   const open = useUI((u) => u.open);
-  // Filters are remembered; a link from the dashboard (e.g. "fees due") overrides them once.
+  // Filters are remembered; a link from the dashboard (e.g. phone change requests) overrides them once.
   const [f, setF] = useState<Filters>(() => {
-    const saved = prefs.get<Filters>(FILTERS_KEY, { batch: 'all', status: 'all', fee: 'all' });
+    const saved = prefs.get<Filters>(FILTERS_KEY, NO_FILTERS);
     const preset = useUI.getState().studentPreset;
-    return preset.batch !== 'all' || preset.fee !== 'all' ? { batch: preset.batch, status: 'all', fee: preset.fee } : saved;
+    return preset.batch !== 'all' || preset.phone ? { ...NO_FILTERS, batch: preset.batch, phone: preset.phone } : saved;
   });
-  useEffect(() => { useUI.getState().setStudentPreset({ batch: 'all', fee: 'all' }); }, []);
+  useEffect(() => { useUI.getState().setStudentPreset({ batch: 'all', phone: false }); }, []);
   useEffect(() => { prefs.set(FILTERS_KEY, f); }, [f]);
   const set = (p: Partial<Filters>) => setF((x) => ({ ...x, ...p }));
-  const { batch, status, fee } = f;
+  const { course, batch, status, phone } = f;
   const [q, setQ] = useState('');
-  const filtered = batch !== 'all' || status !== 'all' || fee !== 'all';
+  const courseOf = useMemo(() => new Map(s.batches.map((b) => [b.id, b.course])), [s.batches]);
+  const filtered = batch !== 'all' || status !== 'all' || phone;
   const shown = useMemo(() => s.students.filter((x) =>
-    (batch === 'all' || x.batchId === batch) && (status === 'all' || x.status === status) && (fee === 'all' || x.fee === fee) &&
-    (!q || `${x.name} ${x.roll} ${x.studentId} ${x.phone}`.toLowerCase().includes(q.toLowerCase()))), [s.students, batch, status, fee, q]);
-  const feeCounts = (['paid', 'partial', 'due'] as const).map((k) => s.students.filter((x) => x.fee === k).length);
-  const via = (['manual', 'excel', 'qr', 'code'] as const).map((k) => [k, s.students.filter((x) => x.joinedVia === k).length] as const);
+    (course === 'all' || courseOf.get(x.batchId) === course) && (batch === 'all' || x.batchId === batch) && (status === 'all' || x.status === status) && (!phone || x.deviceRequest) &&
+    (!q || `${x.name} ${x.studentId} ${x.phone} ${x.email}`.toLowerCase().includes(q.toLowerCase()))), [s.students, courseOf, course, batch, status, phone, q]);
   const active = s.students.filter((x) => x.status === 'active').length;
   const avgProgress = s.students.length ? Math.round(s.students.reduce((a, x) => a + x.progress, 0) / s.students.length) : 0;
-  const card = 'rounded-2xl bg-panel p-5 ring-1 ring-black/[0.04] dark:ring-white/[0.06]';
+  const perCourse = COURSES.map((c) => s.students.filter((x) => courseOf.get(x.batchId) === c).length);
+  const asks = s.students.filter((x) => x.deviceRequest).length;
 
   return (
     <Page screen="students" crumbs={[{ label: 'Academics', href: href({ page: 'academics' }) }, { label: 'Students' }]}
@@ -243,39 +287,30 @@ export function Students({ tab }: { tab: 'all' | 'requests' }) {
             <div><div className="text-xs text-muted">Active students</div><div className="tnum mt-1 text-[30px] font-bold leading-[1.1] tracking-tight">{active.toLocaleString('en-IN')}</div><div className="text-2xs text-muted">of {s.students.length.toLocaleString('en-IN')} enrolled · {avgProgress}% average learning progress</div></div>
             <Ring value={(active / s.students.length) * 100} size={72} stroke={8} tone="pop" label="Active share" />
           </motion.div>
-          <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.05 }} className={cn(card, 'flex items-center gap-5')}>
-            <Donut size={96} thickness={13} center={<span className="text-base">{Math.round((feeCounts[0] / s.students.length) * 100)}%</span>} sub="paid" segments={[{ label: 'Paid', value: feeCounts[0], tone: 'pop' }, { label: 'Partly paid', value: feeCounts[1], tone: 'ink' }, { label: 'Due', value: feeCounts[2], tone: 'hatch' }]} />
-            <div className="flex-1"><div className="mb-2 text-xs font-semibold">Fee status</div><Legend items={[{ label: 'Paid', tone: 'pop', value: feeCounts[0].toLocaleString('en-IN') }, { label: 'Partly paid', tone: 'ink', value: feeCounts[1].toLocaleString('en-IN') }, { label: 'Due', tone: 'hatch', value: feeCounts[2].toLocaleString('en-IN') }]} /></div>
-          </motion.div>
-          <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }} className={card}>
-            <div className="mb-3 text-xs font-semibold">How students joined</div>
-            <div className="space-y-2">{via.map(([k, n]) => (
-              <div key={k} className="grid grid-cols-[72px_minmax(0,1fr)_44px] items-center gap-2 text-2xs" title={`${n.toLocaleString('en-IN')} students`}>
-                <span className="text-muted">{{ manual: 'Manual', excel: 'Excel', qr: 'QR code', code: 'Code' }[k]}</span>
-                <span className="h-2 overflow-hidden rounded-full hatch"><motion.span className="block h-full rounded-full bg-fg" initial={{ width: 0 }} animate={{ width: `${(n / s.students.length) * 100}%` }} transition={{ duration: 0.8 }} /></span>
-                <span className="tnum text-right font-semibold">{n.toLocaleString('en-IN')}</span>
-              </div>
-            ))}</div>
-          </motion.div>
+          <CourseDistribution counts={perCourse} onPick={(c) => set({ course: c, batch: 'all' })} />
+          <AdmissionTrends students={s.students} />
         </div>
       )}
 
+      {tab === 'all' && s.students.length > 0 && (
+        <div className="mb-3"><Segmented value={course} onChange={(c) => set({ course: c, batch: 'all' })} options={[{ value: 'all', label: 'All courses' }, ...COURSES.map((c) => ({ value: c, label: c.replace('CA ', '') }))]} /></div>
+      )}
       <Card>
         <Tabs value={tab} onChange={(v) => navigate(v === 'all' ? { page: 'students' } : { page: 'join-requests' })}
-          tabs={[{ value: 'all', label: 'All students', count: s.students.length }, { value: 'requests', label: 'Join requests', count: s.joinRequests.length }]} />
+          tabs={[{ value: 'all', label: course === 'all' ? 'All students' : `${course} students`, count: course === 'all' ? s.students.length : perCourse[COURSES.indexOf(course)] }, { value: 'requests', label: 'Join requests', count: s.joinRequests.length }]} />
         {tab === 'all' ? (s.students.length ? (
           <>
             <div className="flex flex-wrap items-center gap-2 px-5 py-4">
-              <div className="relative w-full sm:w-72"><Search className="pointer-events-none absolute left-3.5 top-1/2 size-4 -translate-y-1/2 text-faint" /><Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search name, ID, roll or phone" className="pl-10" aria-label="Search students" /></div>
-              <Select value={batch} onChange={(e) => set({ batch: e.target.value })} className="w-56" aria-label="Batch"><option value="all">All batches</option>{s.batches.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}</Select>
+              <div className="relative w-full sm:w-72"><Search className="pointer-events-none absolute left-3.5 top-1/2 size-4 -translate-y-1/2 text-faint" /><Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search name, ID, phone or email" className="pl-10" aria-label="Search students" /></div>
+              <Select value={batch} onChange={(e) => set({ batch: e.target.value })} className="w-56" aria-label="Batch"><option value="all">All batches</option>{s.batches.filter((b) => course === 'all' || b.course === course).map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}</Select>
               <Segmented value={status} onChange={(v) => set({ status: v })} options={[{ value: 'all', label: 'All' }, { value: 'active', label: 'Active' }, { value: 'inactive', label: 'Inactive' }, { value: 'suspended', label: 'Suspended' }]} />
-              <Select value={fee} onChange={(e) => set({ fee: e.target.value })} className="w-40" aria-label="Fee status"><option value="all">Any fee status</option><option value="paid">Paid</option><option value="partial">Partly paid</option><option value="due">Due</option></Select>
-              {filtered && <Button variant="ghost" size="sm" onClick={() => setF({ batch: 'all', status: 'all', fee: 'all' })}><X /> Clear filters</Button>}
+              {asks > 0 && <Button size="sm" variant={phone ? 'primary' : 'secondary'} onClick={() => set({ phone: !phone })}><Smartphone /> Phone change requests · {asks}</Button>}
+              {filtered && <Button variant="ghost" size="sm" onClick={() => setF({ ...NO_FILTERS, course })}><X /> Clear filters</Button>}
               <span className="tnum ml-auto text-xs text-muted">{shown.length.toLocaleString('en-IN')} shown</span>
               <ColumnPicker />
               <Button onClick={() => exportStudents(shown, s.batches)} disabled={!shown.length}><Download /> Export</Button>
             </div>
-            <StudentTable key={`${batch}${status}${fee}${q}`} students={shown} />
+            <StudentTable key={`${course}${batch}${status}${phone}${q}`} students={shown} />
           </>
         ) : (
           <EmptyState icon={Users} title="No students yet" action={<><Button onClick={() => open('import')}><Upload /> Import from Excel</Button><Button variant="primary" onClick={() => open('student')}><UserPlus /> Add students</Button></>}>Add them by hand, from Excel, with a classroom QR code, or with an academy code.</EmptyState>
@@ -285,10 +320,10 @@ export function Students({ tab }: { tab: 'all' | 'requests' }) {
   );
 }
 
+/** Students who joined with the QR or academy code. Their details come from the app; the academy only picks the batch. */
 function JoinRequests() {
   const { joinRequests, batches, addStudent } = useStore();
   const [batchFor, setBatchFor] = useState<Record<string, string>>({});
-  const [rollFor, setRollFor] = useState<Record<string, string>>({});
   const remove = (id: string) => useStore.setState((st) => ({ joinRequests: st.joinRequests.filter((j) => j.id !== id) }));
   if (!joinRequests.length) return <EmptyState icon={Inbox} title="No join requests">Students who join with the QR code or the academy code wait here for approval.</EmptyState>;
   const active = batches.filter((b) => b.status === 'active');
@@ -296,18 +331,17 @@ function JoinRequests() {
     <ul className="divide-y divide-border">
       {joinRequests.map((j) => {
         const b = batchFor[j.id] || active[0]?.id || '';
-        const roll = rollFor[j.id] ?? '';
         return (
           <li key={j.id} className="flex flex-wrap items-center gap-3 px-5 py-4">
             <Avatar name={j.name} />
-            <div className="min-w-40 flex-1"><div className="font-semibold">{j.name}</div><div className="text-2xs text-muted">{j.phone}</div></div>
+            <div className="min-w-48 flex-1"><div className="font-semibold">{j.name}</div><div className="text-2xs text-muted">{j.phone} · {j.email} · born {fmtDate(j.dob)}</div></div>
             <Select aria-label={`Batch for ${j.name}`} value={b} onChange={(e) => setBatchFor({ ...batchFor, [j.id]: e.target.value })} className="w-56">{active.map((x) => <option key={x.id} value={x.id}>{x.name}</option>)}</Select>
-            <Input aria-label={`Roll number for ${j.name}`} placeholder="Roll no." value={roll} onChange={(e) => setRollFor({ ...rollFor, [j.id]: e.target.value })} className={cn('w-32')} />
             <Button size="sm" onClick={() => { remove(j.id); toast('Request declined'); }}><X /> Decline</Button>
-            <Button size="sm" variant="primary" disabled={!roll.trim()} onClick={() => {
-              const r = addStudent({ name: j.name, roll: roll.trim(), batchId: b, phone: j.phone, email: '', joinedVia: 'code' });
+            <Button size="sm" variant="primary" onClick={() => {
+              const { id: _id, at: _at, ...details } = j;
+              const r = addStudent({ ...details, batchId: b, joinedVia: 'code' });
               if ('error' in r) { toast.error(r.error); return; }
-              remove(j.id); toast.success(`${j.name} approved`);
+              remove(j.id); toast.success(`${j.name} approved`, { description: `Login ID ${r.student.loginId} · password ${r.password}` });
             }}><Check /> Approve</Button>
           </li>
         );

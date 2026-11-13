@@ -55,7 +55,7 @@ export function Store({ tab }: { tab: StoreTab }) {
           {tab === 'products' && <MyProducts onUpgrade={onUpgrade} />}{tab === 'bundles' && <Bundles onUpgrade={onUpgrade} />}{tab === 'offers' && <Offers />}{tab === 'sales' && <Sales />}
         </div>
       </Card>
-      <p className="mt-3 text-2xs text-faint">Sample store: payments here take no money. GST, licence validity, cycles and add-on pricing are set in <a className="underline" href={href({ page: 'settings', tab: 'store' })}>Settings → Store rules</a>.</p>
+      <p className="mt-3 text-2xs text-faint">Sample store: payments here take no money. Licence validity, cycles and add-on pricing are set in <a className="underline" href={href({ page: 'settings', tab: 'store' })}>Settings → Store rules</a>.</p>
       {upgrade && <UpgradeDialog onClose={() => setUpgrade(false)} />}
     </Page>
   );

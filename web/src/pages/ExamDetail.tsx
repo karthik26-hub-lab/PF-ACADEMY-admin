@@ -83,7 +83,7 @@ export function ExamDetail({ id }: { id: string }) {
                 <tbody>{enrolledList.map((s) => (
                   <tr key={s.id} className="cursor-pointer hover:bg-hover" onClick={() => navigate({ page: 'student', id: s.id })}>
                     <Td><span className="flex items-center gap-2.5"><Avatar name={s.name} />{s.name}</span></Td>
-                    <Td className="font-mono text-xs">{s.roll}</Td><Td className="text-muted">{bname(s.batchId)}</Td>
+                    <Td className="font-mono text-xs">{s.studentId}</Td><Td className="text-muted">{bname(s.batchId)}</Td>
                   </tr>
                 ))}</tbody>
               </Table>

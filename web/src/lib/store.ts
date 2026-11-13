@@ -11,13 +11,13 @@ export type Late = 'none' | '30m' | '24h';
 export type ExamStatus = 'draft' | 'scheduled' | 'live' | 'closed';
 export type ExamKind = 'mcq' | 'descriptive' | 'mixed';
 export type StudentStatus = 'active' | 'inactive' | 'suspended';
-export type FeeStatus = 'paid' | 'partial' | 'due';
+export type Gender = 'Male' | 'Female' | 'Other';
 export type EventType = 'class' | 'exam' | 'deadline' | 'holiday' | 'event' | 'task';
 /** Where a live session happens. One entry can be on both, so the academy never has to keep two schedules in sync. */
 export type Delivery = 'offline' | 'online';
 export type RecordedType = 'class' | 'revision' | 'buffer' | 'task';
 
-export interface Academy { name: string; city: string; email: string; phone: string; code: string }
+export interface Academy { name: string; city: string; email: string; phone: string; code: string; gstin: string; address: string }
 export interface Me { name: string; email: string }
 export interface Announcement { id: string; text: string; at: number }
 export interface Batch {
@@ -25,11 +25,19 @@ export interface Batch {
   status: 'active' | 'archived'; startDate: string; schedule: string; facultyIds: string[]; announcements: Announcement[];
 }
 export interface Member { id: string; name: string; email: string; phone?: string; role: Role; batchIds: string[]; subjects?: string[]; invitedAt: number }
+/** Something the student did, shown on their profile (newest first). */
+export interface StudentActivity { at: number; kind: 'mcq' | 'test' | 'batch' | 'device' | 'login'; text: string }
 export interface Student {
-  id: string; studentId: string; name: string; roll: string; batchId: string; phone: string; email: string; loginId: string; createdAt: number;
-  admissionDate: string; status: StudentStatus; fee: FeeStatus; progress: number; avgScore: number | null; trend: number[]; joinedVia: 'manual' | 'excel' | 'qr' | 'code';
+  id: string; studentId: string; name: string; batchId: string; phone: string; email: string; loginId: string; createdAt: number;
+  dob: string; gender: Gender; parentName: string; parentPhone: string;
+  admissionDate: string; status: StudentStatus; progress: number; avgScore: number | null; trend: number[]; joinedVia: 'manual' | 'excel' | 'qr' | 'code';
+  /** The one phone the app is tied to; a sign-in on another phone waits here for approval. */
+  device: string; deviceRequest?: { name: string; at: number };
+  activity: StudentActivity[];
 }
-export interface JoinRequest { id: string; name: string; phone: string; roll: string; at: number }
+/** The details a student enters in the app when joining with a QR or academy code. */
+export type StudentDetails = Pick<Student, 'name' | 'phone' | 'email' | 'dob' | 'gender' | 'parentName' | 'parentPhone'>;
+export interface JoinRequest extends StudentDetails { id: string; at: number }
 export interface See { steps: boolean; needed: boolean; model: boolean; rank: boolean }
 export interface Exam {
   id: string; title: string; subject: string; fileName: string; batchIds: string[]; kind?: ExamKind;
@@ -66,7 +74,7 @@ export interface Data {
   activity: Activity[]; defaults: Defaults; access: Access;
 }
 
-type NewStudent = Pick<Student, 'name' | 'roll' | 'batchId' | 'phone' | 'email'> & Partial<Pick<Student, 'joinedVia' | 'admissionDate' | 'fee'>>;
+export type NewStudent = StudentDetails & Pick<Student, 'batchId'> & Partial<Pick<Student, 'joinedVia' | 'admissionDate'>>;
 
 interface State extends Data {
   signedIn: boolean;
@@ -83,6 +91,7 @@ interface State extends Data {
   updateStudents: (ids: string[], s: Partial<Student>) => void;
   removeStudents: (ids: string[]) => void;
   deleteStudent: (id: string) => void;
+  decideDevice: (id: string, approve: boolean) => void;
   invite: (m: Omit<Member, 'id' | 'invitedAt'>) => void;
   updateMember: (id: string, m: Partial<Member>) => void;
   removeMember: (id: string) => void;
@@ -109,12 +118,18 @@ export const uid = () => Math.random().toString(36).slice(2, 10);
 const L = 'ABCDEFGHJKLMNPQRSTUVWXYZ', N = '23456789';
 const pick = (s: string, n: number) => Array.from({ length: n }, () => s[Math.floor(Math.random() * s.length)]).join('');
 export const tempPassword = () => `${pick(L, 4)}-${pick(N, 4)}`;
+/** Default app password: first 4 letters of the name (letters only, first one capital) @ year of birth, e.g. Gaut@2004. */
+export const defaultPassword = (name: string, dob: string) => {
+  const l = name.replace(/[^A-Za-z]/g, '').slice(0, 4).toLowerCase();
+  return `${l.charAt(0).toUpperCase()}${l.slice(1)}@${dob.slice(0, 4)}`;
+};
+export const validEmail = (v: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v.trim());
 export const randomCode = (prefix = 'PF') => `${prefix}-${pick(N, 2)}${pick(L, 3)}`;
 const today = () => new Date().toISOString().slice(0, 10);
 
 export const emptyData = (): Data => ({
   sample: false,
-  academy: { name: '', city: '', email: '', phone: '', code: '' },
+  academy: { name: '', city: '', email: '', phone: '', code: '', gstin: '', address: '' },
   me: { name: '', email: '' },
   batches: [], members: [], students: [], joinRequests: [], exams: [], events: [], recorded: [], codes: [], courses: [],
   revenue: { ebooks: 0, tests: 0, questionBanks: 0, monthly: Array(12).fill(0) }, feed: { uploads: [], studentActs: [] },
@@ -130,15 +145,22 @@ export const useStore = create<State>()(
     (set, get) => {
       const log = (kind: Activity['kind'], text: string) =>
         set((s) => ({ activity: [{ id: uid(), kind, text, at: Date.now() }, ...s.activity].slice(0, 60) }));
+      // Student ID is the next number; the login ID is the email, so an email can only be used once.
       const makeStudent = (st: NewStudent): Student | null => {
-        const prefix = (get().academy.code.split('-')[0] || 'pf').toLowerCase();
-        const loginId = `${prefix}-${st.roll.toLowerCase().replace(/[^a-z0-9]/g, '')}`;
-        if (get().students.some((x) => x.loginId === loginId)) return null;
-        const n = get().students.length + 1;
+        const loginId = st.email.trim().toLowerCase();
+        if (!loginId || get().students.some((x) => x.loginId === loginId)) return null;
+        const n = Math.max(10000, ...get().students.map((x) => +x.studentId.slice(2) || 0)) + 1;
         return {
-          ...st, id: uid(), loginId, createdAt: Date.now(), studentId: `PF${String(10000 + n)}`,
-          admissionDate: st.admissionDate || today(), status: 'active', fee: st.fee || 'due', progress: 0, avgScore: null, trend: [], joinedVia: st.joinedVia || 'manual',
+          ...st, id: uid(), loginId, createdAt: Date.now(), studentId: `PF${n}`,
+          admissionDate: st.admissionDate || today(), status: 'active', progress: 0, avgScore: null, trend: [], joinedVia: st.joinedVia || 'manual',
+          device: '', activity: [{ at: Date.now(), kind: 'login', text: 'Account created' }],
         };
+      };
+      // A batch change is written to the student's activity.
+      const moved = (x: Student, patch: Partial<Student>): Student => {
+        if (!patch.batchId || patch.batchId === x.batchId) return { ...x, ...patch };
+        const name = (id: string) => get().batches.find((b) => b.id === id)?.name ?? 'another batch';
+        return { ...x, ...patch, activity: [{ at: Date.now(), kind: 'batch', text: `Moved from ${name(x.batchId)} to ${name(patch.batchId)}` }, ...x.activity] };
       };
       return {
         ...makeSample(),
@@ -164,10 +186,10 @@ export const useStore = create<State>()(
         announce: (batchId, text) => set((s) => ({ batches: s.batches.map((b) => (b.id === batchId ? { ...b, announcements: [{ id: uid(), text, at: Date.now() }, ...b.announcements] } : b)) })),
         addStudent: (st) => {
           const student = makeStudent(st);
-          if (!student) return { error: `Roll number ${st.roll} is already used` };
+          if (!student) return { error: `${st.email.trim()} is already used by another student` };
           set((s) => ({ students: [student, ...s.students] }));
           log('student', `${student.name} added`);
-          return { student, password: tempPassword() };
+          return { student, password: defaultPassword(student.name, student.dob) };
         },
         addStudents: (rows) => {
           let added = 0, skipped = 0;
@@ -179,8 +201,13 @@ export const useStore = create<State>()(
           if (added) log('student', `${added} students imported`);
           return { added, skipped };
         },
-        updateStudent: (id, st) => set((s) => ({ students: s.students.map((x) => (x.id === id ? { ...x, ...st } : x)) })),
-        updateStudents: (ids, st) => { const pick = new Set(ids); set((s) => ({ students: s.students.map((x) => (pick.has(x.id) ? { ...x, ...st } : x)) })); },
+        updateStudent: (id, st) => set((s) => ({ students: s.students.map((x) => (x.id === id ? moved(x, st) : x)) })),
+        updateStudents: (ids, st) => { const pick = new Set(ids); set((s) => ({ students: s.students.map((x) => (pick.has(x.id) ? moved(x, st) : x)) })); },
+        decideDevice: (id, approve) => set((s) => ({ students: s.students.map((x) => {
+          if (x.id !== id || !x.deviceRequest) return x;
+          const d = x.deviceRequest.name;
+          return { ...x, device: approve ? d : x.device, deviceRequest: undefined, activity: [{ at: Date.now(), kind: 'device', text: approve ? `New phone approved: ${d}` : `Sign-in on ${d} was rejected` }, ...x.activity] };
+        }) })),
         removeStudents: (ids) => { const pick = new Set(ids); set((s) => ({ students: s.students.filter((x) => !pick.has(x.id)) })); log('student', `${ids.length} students removed`); },
         deleteStudent: (id) => set((s) => ({ students: s.students.filter((x) => x.id !== id) })),
         invite: (m) => { set((s) => ({ members: [...s.members, { ...m, id: uid(), invitedAt: Date.now() }] })); log('team', `${m.name} added as ${m.role}`); },
@@ -215,7 +242,7 @@ export const useStore = create<State>()(
       };
     },
     {
-      name: 'pf-academy-v4',
+      name: 'pf-academy-v6',
       storage: createJSONStorage(() => {
         try { localStorage.setItem('__t', '1'); localStorage.removeItem('__t'); return localStorage; }
         catch { const m = new Map<string, string>(); return { getItem: (k) => m.get(k) ?? null, setItem: (k, v) => void m.set(k, v), removeItem: (k) => void m.delete(k) }; }

@@ -154,7 +154,7 @@ function AccessDialog({ mode, licenceId, onClose }: { mode: 'allocate' | 'revoke
   const [confirm, setConfirm] = useState(false);
   const l = shop.licences.find((x) => x.id === id)!, c = current(l);
   const [bc, setBc] = useState<CourseFilter>(shop.catalog.find((p) => p.id === l.productId)?.course as Course ?? 'all');
-  const pool = students.filter((s) => (mode === 'allocate' ? !l.active[s.id] : l.active[s.id]) && (!q || `${s.name} ${s.roll}`.toLowerCase().includes(q.toLowerCase())));
+  const pool = students.filter((s) => (mode === 'allocate' ? !l.active[s.id] : l.active[s.id]) && (!q || `${s.name} ${s.studentId}`.toLowerCase().includes(q.toLowerCase())));
   const groups = batches.filter((b) => bc === 'all' || b.course === bc).map((b) => ({ b, list: pool.filter((s) => s.batchId === b.id) })).filter((g) => g.list.length);
   const st = allocState(l), limit = mode === 'allocate' ? st.limit : Infinity;
   const flip = (ids: string[], on: boolean) => {
@@ -192,7 +192,7 @@ function AccessDialog({ mode, licenceId, onClose }: { mode: 'allocate' | 'revoke
                 <button onClick={() => setOpen(open === b.id ? null : b.id)} className="flex min-w-0 flex-1 items-center gap-2 text-left text-sm"><span className="truncate font-medium">{b.name}</span><span className="text-2xs text-muted">{list.length} students</span><ChevronDown className={cn('ml-auto size-4 text-muted transition', open === b.id && 'rotate-180')} /></button>
               </div>
               {open === b.id && <ul className="space-y-0.5 px-3 pb-2 pl-10">{list.map((s) => (
-                <li key={s.id} className="flex items-center gap-3 text-sm"><Tick on={picked.has(s.id)} onClick={() => flip([s.id], !picked.has(s.id))} label={`Select ${s.name}`} />{s.name}<span className="font-mono text-2xs text-faint">{s.roll}</span></li>
+                <li key={s.id} className="flex items-center gap-3 text-sm"><Tick on={picked.has(s.id)} onClick={() => flip([s.id], !picked.has(s.id))} label={`Select ${s.name}`} />{s.name}<span className="font-mono text-2xs text-faint">{s.studentId}</span></li>
               ))}</ul>}
             </li>
           );

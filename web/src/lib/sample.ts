@@ -1,6 +1,6 @@
 // Sample academy used for the preview. Every name and figure is made up.
 // The app labels it "Sample data", and Settings → Data clears it.
-import type { Batch, CalendarEvent, Course, RecordedDay, Data, Exam, ExamKind, FeeStatus, JoinCode, Member, Student, StudentStatus } from './store';
+import type { Batch, CalendarEvent, Course, RecordedDay, Data, Exam, ExamKind, Gender, JoinCode, Member, Student, StudentActivity, StudentStatus } from './store';
 
 function rng(seed: number) {
   return () => { seed |= 0; seed = (seed + 0x6d2b79f5) | 0; let t = Math.imul(seed ^ (seed >>> 15), 1 | seed); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
@@ -8,6 +8,7 @@ function rng(seed: number) {
 
 const FIRST = ['Aarav', 'Diya', 'Rohan', 'Sneha', 'Kabir', 'Meera', 'Ishaan', 'Ananya', 'Vihaan', 'Tara', 'Nikhil', 'Pooja', 'Arjun', 'Saanvi', 'Kunal', 'Ira', 'Dev', 'Neha', 'Yash', 'Aditi', 'Rahul', 'Kavya', 'Siddharth', 'Riya', 'Harsh', 'Lavanya', 'Farhan', 'Nandini', 'Varun', 'Shreya', 'Aditya', 'Keerthana', 'Pranav', 'Divya', 'Rakesh', 'Swathi', 'Gautham', 'Janani', 'Manoj', 'Priya'];
 const LAST = ['Kulkarni', 'Menon', 'Pillai', 'Joshi', 'Sethi', 'Nair', 'Gupta', 'Rao', 'Shah', 'Bhatt', 'Verma', 'Reddy', 'Iyer', 'Desai', 'Bose', 'Kapoor', 'Patil', 'Kamath', 'Sharma', 'Agarwal', 'Krishnan', 'Subramanian', 'Raghavan', 'Venkatesh', 'Chandran'];
+const PARENT = ['Ramesh', 'Suresh', 'Lakshmi', 'Vijay', 'Geetha', 'Prakash', 'Meena', 'Anil', 'Revathi', 'Mohan', 'Sunita', 'Rajesh'];
 const iso = (d: Date) => d.toISOString().slice(0, 10);
 const local = (d: Date) => { const p = (n: number) => String(n).padStart(2, '0'); return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`; };
 const day = (offset: number, h = 10, m = 0) => { const d = new Date(); d.setDate(d.getDate() + offset); d.setHours(h, m, 0, 0); return d; };
@@ -52,22 +53,33 @@ export function makeSample(): Data {
   });
 
   const students: Student[] = [];
+  const PHONES = ['Redmi Note 12', 'Samsung Galaxy M34', 'iPhone 13', 'OnePlus Nord CE 3', 'Vivo T2', 'Realme 11', 'Pixel 7a'];
+  const ACT_TOPICS = ['AS 10', 'GST – Supply', 'Capital Gains', 'Company Law', 'Costing', 'SA 230', 'Ratio Analysis', 'Partnership'];
+  const phone = () => `+91 9${String(Math.floor(r() * 1e9)).padStart(9, '0')}`;
+  // A few recent things each student did, newest first.
+  const acts = (): StudentActivity[] => Array.from({ length: 3 + Math.floor(r() * 4) }, (_, i): StudentActivity => {
+    const at = now - (i * 2 + r() * 2) * 86400e3, t = pickOne(ACT_TOPICS);
+    return r() < 0.55 ? { at, kind: 'mcq', text: `Attempted ${t} MCQs · ${15 + Math.floor(r() * 25)}/40` } : { at, kind: 'test', text: `Submitted the ${t} test` };
+  });
   let n = 0;
-  batchDefs.forEach(([, course], bi) => {
-    const prefix = course === 'CA Foundation' ? 'FDN' : course === 'CA Inter' ? 'INT' : 'FIN';
+  batchDefs.forEach((_, bi) => {
     for (let k = 0; k < batchDefs[bi][2]; k++) {
       n++;
       const name = `${pickOne(FIRST)} ${pickOne(LAST)}`;
       const base = 45 + r() * 40;
       const trend = Array.from({ length: 8 }, (_, t) => Math.round(Math.max(20, Math.min(98, base + (t - 4) * (r() * 2.5 - 0.6) + (r() * 10 - 5)))));
       const status: StudentStatus = r() < 0.9 ? 'active' : r() < 0.6 ? 'inactive' : 'suspended';
-      const fee: FeeStatus = r() < 0.72 ? 'paid' : r() < 0.6 ? 'partial' : 'due';
-      const roll = `${prefix}-${String(n).padStart(4, '0')}`;
+      // Admissions over the last year, a little busier recently, so this attempt can be compared with the last one.
+      const joined = Math.floor(Math.pow(r(), 1.2) * 360);
+      const email = `${name.toLowerCase().replace(/[^a-z]/g, '.')}${n}@mail.example`;
+      const ask = r() < 0.03;
       students.push({
-        id: `s${n}`, studentId: `PF${10000 + n}`, name, roll, batchId: `b${bi}`, phone: `+91 9${String(Math.floor(r() * 1e9)).padStart(9, '0')}`,
-        email: `${name.toLowerCase().replace(/[^a-z]/g, '.')}${n}@mail.example`, loginId: `ns-${roll.toLowerCase().replace('-', '')}`,
-        createdAt: now - Math.floor(r() * 180) * 86400e3, admissionDate: iso(day(-Math.floor(r() * 200))), status, fee,
+        id: `s${n}`, studentId: `PF${10000 + n}`, name, batchId: `b${bi}`, phone: phone(), email, loginId: email,
+        dob: `${2001 + Math.floor(r() * 7)}-${String(1 + Math.floor(r() * 12)).padStart(2, '0')}-${String(1 + Math.floor(r() * 28)).padStart(2, '0')}`,
+        gender: pickOne<Gender>(['Male', 'Female']), parentName: `${pickOne(PARENT)} ${name.split(' ')[1]}`, parentPhone: phone(),
+        createdAt: now - joined * 86400e3, admissionDate: iso(day(-joined)), status,
         progress: Math.round(20 + r() * 75), avgScore: trend[trend.length - 1], trend, joinedVia: pickOne(['manual', 'excel', 'excel', 'qr', 'code'] as const),
+        device: pickOne(PHONES), deviceRequest: ask ? { name: pickOne(PHONES), at: now - Math.floor(r() * 48) * 3600e3 } : undefined, activity: acts(),
       });
     }
   });
@@ -175,18 +187,14 @@ export function makeSample(): Data {
 
   return {
     sample: true,
-    academy: { name: 'Northstar Academy', city: 'Chennai', email: 'office@northstar.example', phone: '+91 44 0000 0000', code: 'NSA-48QWE' },
+    academy: { name: 'Northstar Academy', city: 'Chennai', email: 'office@northstar.example', phone: '+91 44 0000 0000', code: 'NSA-48QWE', gstin: '33AAACN0000X1Z5', address: '12 Sample Street, T. Nagar, Chennai 600017' },
     me: { name: 'Lakshmi R', email: 'admin@northstar.example' },
     batches, members: faculty, students,
-    joinRequests: [
-      { id: 'j1', name: 'Harsh Agarwal', phone: '+91 98••• 4410', roll: '', at: now - 12 * 60e3 },
-      { id: 'j2', name: 'Lavanya S', phone: '+91 97••• 1182', roll: '', at: now - 3600e3 },
-      { id: 'j3', name: 'Farhan Qureshi', phone: '+91 90••• 7759', roll: '', at: now - 26 * 3600e3 },
-      { id: 'j4', name: 'Keerthana V', phone: '+91 99••• 2051', roll: '', at: now - 30 * 3600e3 },
-      { id: 'j5', name: 'Rakesh Pillai', phone: '+91 96••• 6630', roll: '', at: now - 40 * 3600e3 },
-      { id: 'j6', name: 'Janani M', phone: '+91 95••• 0917', roll: '', at: now - 52 * 3600e3 },
-      { id: 'j7', name: 'Pranav Iyer', phone: '+91 93••• 4472', roll: '', at: now - 70 * 3600e3 },
-    ],
+    joinRequests: ([['Harsh Agarwal', 'Male', 12 * 60e3], ['Lavanya S', 'Female', 3600e3], ['Farhan Qureshi', 'Male', 26 * 3600e3], ['Keerthana V', 'Female', 30 * 3600e3],
+      ['Rakesh Pillai', 'Male', 40 * 3600e3], ['Janani M', 'Female', 52 * 3600e3], ['Pranav Iyer', 'Male', 70 * 3600e3]] as const).map(([name, gender, ago], i) => ({
+      id: `j${i + 1}`, name, gender, phone: `+91 9${8000000 + i * 1373}12`, email: `${name.toLowerCase().replace(/[^a-z]/g, '.')}@mail.example`,
+      dob: `${2003 + (i % 4)}-0${1 + i}-1${i}`, parentName: `${PARENT[i]} ${name.split(' ')[1]}`, parentPhone: `+91 9${7000000 + i * 911}45`, at: now - ago,
+    })),
     exams, events, recorded, codes,
     courses: [
       { id: 'c1', name: 'CA Inter', active: true, subjects: 12, materials: 412 },
