@@ -29,6 +29,10 @@ export function makeSample(): Data {
   ].map(([name, role, subjects], i) => ({
     id: `f${i}`, name: name as string, email: `${(name as string).toLowerCase().replace(/[^a-z]/g, '')}@northstar.example`, phone: `+91 98${String(40000000 + i * 7919).slice(0, 8)}`,
     role: role as Member['role'], subjects: subjects as string[], batchIds: [], invitedAt: now - (60 - i) * 86400e3,
+    // Most have signed in; a few haven't yet (invitation pending) and one is suspended.
+    status: i >= 17 ? 'pending' : i === 9 ? 'suspended' : 'active', lastLogin: i >= 17 ? undefined : now - (i % 5 + 1) * 3600e3 * 7,
+    dob: i % 3 ? `${1975 + (i * 3) % 18}-0${1 + (i % 9)}-1${i % 10}` : undefined,
+    tasks: i < 4 ? [{ id: `t${i}`, text: ['Make a 40-question bank on Capital Gains', 'Upload revision notes for SA 230', 'Set the Taxation mock paper for Saturday', 'Review the Audit chapter test scripts'][i], due: iso(day(2 + i)) + 'T18:00', at: now - (i + 1) * 86400e3, done: i === 2 }] : [],
   }));
 
   // About 2,500 students across 31 batches, the size the client's academies run at.
@@ -189,6 +193,7 @@ export function makeSample(): Data {
     sample: true,
     academy: { name: 'Northstar Academy', city: 'Chennai', email: 'office@northstar.example', phone: '+91 44 0000 0000', code: 'NSA-48QWE', gstin: '33AAACN0000X1Z5', address: '12 Sample Street, T. Nagar, Chennai 600017' },
     me: { name: 'Lakshmi R', email: 'admin@northstar.example' },
+    roles: [{ id: 'r1', name: 'Content coordinator', desc: 'Uploads and organises study material for all batches; no exams or students.', perms: { 'View courses': 'full', 'View study materials': 'full', 'Upload materials': 'full', 'Edit/delete materials': 'full', 'Create announcements': 'limited', Dashboard: 'view' } }],
     batches, members: faculty, students,
     joinRequests: ([['Harsh Agarwal', 'Male', 12 * 60e3], ['Lavanya S', 'Female', 3600e3], ['Farhan Qureshi', 'Male', 26 * 3600e3], ['Keerthana V', 'Female', 30 * 3600e3],
       ['Rakesh Pillai', 'Male', 40 * 3600e3], ['Janani M', 'Female', 52 * 3600e3], ['Pranav Iyer', 'Male', 70 * 3600e3]] as const).map(([name, gender, ago], i) => ({

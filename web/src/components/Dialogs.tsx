@@ -4,8 +4,9 @@ import QRCode from 'qrcode';
 import readXlsxFile from 'read-excel-file';
 import { useEffect, useMemo, useState, type FormEvent } from 'react';
 import { toast } from 'sonner';
-import { COURSES, SUBJECTS, defaultPassword, useStore, validEmail, type Course, type Gender, type Role, type Student, type StudentDetails } from '../lib/store';
+import { COURSES, defaultPassword, useStore, validEmail, type Course, type Gender, type Student, type StudentDetails } from '../lib/store';
 import { EventDialog, RecordedDialog } from './CalendarDialogs';
+import { FacultyDialog } from './FacultyDialog';
 import { CalendarImportDialog } from './CalendarImport';
 import { useUI } from '../lib/ui-state';
 import { cn, downloadCSV } from '../lib/utils';
@@ -319,22 +320,6 @@ function CodeJoin({ batchId }: { batchId: string }) {
 
 function InviteDialog() {
   const d = useDialog('invite');
-  const { invite, batches } = useStore();
-  const [f, setF] = useState({ name: '', email: '', phone: '', role: 'Faculty' as Role, batch: 'all', subject: SUBJECTS[0] });
-  useEffect(() => { if (d.open) setF({ name: '', email: '', phone: '', role: 'Faculty', batch: 'all', subject: SUBJECTS[0] }); }, [d.open]);
-  const ok = f.name.trim() && /\S+@\S+\.\S+/.test(f.email);
-  const submit = (e: FormEvent) => { e.preventDefault(); if (!ok) return; invite({ name: f.name.trim(), email: f.email.trim(), phone: f.phone.trim(), role: f.role, subjects: [f.subject], batchIds: f.batch === 'all' ? [] : [f.batch] }); toast.success(`${f.name.trim()} added`, { description: `Invitation will go to ${f.email.trim()}` }); d.close(); };
-  return (
-    <Dialog open={d.open} onOpenChange={d.onOpenChange} title="Add faculty" desc="Faculty sign in to this portal with their own email."
-      footer={<><Button onClick={d.close}>Cancel</Button><Button variant="primary" type="submit" form="invite-form" disabled={!ok}>Add faculty</Button></>}>
-      <form id="invite-form" onSubmit={submit} className="grid gap-4 sm:grid-cols-2">
-        <Field label="Name" htmlFor="iv-name"><Input id="iv-name" autoFocus value={f.name} onChange={(e) => setF({ ...f, name: e.target.value })} /></Field>
-        <Field label="Email" htmlFor="iv-mail"><Input id="iv-mail" type="email" value={f.email} onChange={(e) => setF({ ...f, email: e.target.value })} /></Field>
-        <Field label="Subject" htmlFor="iv-sub"><Select id="iv-sub" value={f.subject} onChange={(e) => setF({ ...f, subject: e.target.value })}>{SUBJECTS.map((s) => <option key={s}>{s}</option>)}</Select></Field>
-        <Field label="Access" htmlFor="iv-role"><Select id="iv-role" value={f.role} onChange={(e) => setF({ ...f, role: e.target.value as Role })}><option>Faculty</option><option>Reviewer</option><option>Exam manager</option><option>Academy admin</option></Select></Field>
-        <Field label="Batch" htmlFor="iv-b" className="sm:col-span-2"><Select id="iv-b" value={f.batch} onChange={(e) => setF({ ...f, batch: e.target.value })}><option value="all">All batches</option>{batches.map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}</Select></Field>
-      </form>
-    </Dialog>
-  );
+  return <FacultyDialog open={d.open} onClose={d.close} />;
 }
 

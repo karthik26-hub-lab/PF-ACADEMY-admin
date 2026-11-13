@@ -195,8 +195,11 @@ export const Kbd = ({ children, className }: { children: React.ReactNode; classN
   <kbd className={cn('inline-flex h-5 min-w-5 items-center justify-center rounded border border-border bg-subtle px-1 font-sans text-2xs font-medium text-muted', className)}>{children}</kbd>
 );
 
-export const Avatar = ({ name, size = 'md', className }: { name: string; size?: 'sm' | 'md' | 'lg'; className?: string }) => {
+/** Initials in a soft colour, or the person's photo when they have one. */
+export const Avatar = ({ name, size = 'md', className, src }: { name: string; size?: 'sm' | 'md' | 'lg'; className?: string; src?: string }) => {
   const hue = [...name].reduce((a, c) => a + c.charCodeAt(0), 0) % 360;
+  const box = size === 'sm' ? 'size-6' : size === 'lg' ? 'size-14' : 'size-8';
+  if (src) return <img src={src} alt={name} className={cn('shrink-0 rounded-full object-cover', box, className)} />;
   return (
     <span className={cn('grid shrink-0 place-items-center rounded-full font-medium bg-[hsl(var(--h)_70%_55%/0.16)] text-[hsl(var(--h)_50%_36%)] dark:text-[hsl(var(--h)_70%_74%)]', size === 'sm' ? 'size-6 text-[10px]' : size === 'lg' ? 'size-14 text-lg' : 'size-8 text-2xs', className)}
       style={{ '--h': hue } as React.CSSProperties}>{initials(name)}</span>

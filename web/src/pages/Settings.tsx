@@ -1,13 +1,14 @@
 import { motion } from 'framer-motion';
-import { AlertTriangle, Check, CloudUpload, CreditCard, KeyRound, Monitor, Plus, Smartphone, Webhook } from 'lucide-react';
+import { AlertTriangle, CloudUpload, CreditCard, KeyRound, Monitor, Plus, Smartphone, Webhook } from 'lucide-react';
 import { useEffect, useState, type FormEvent, type ReactNode } from 'react';
 import { toast } from 'sonner';
 import { Page } from '../components/layout/Page';
 import { SETTINGS_TABS } from '../components/layout/TopNav';
 import { Ring } from '../components/charts';
-import { Avatar, Badge, Button, Card, CardHeader, Dialog, Field, Input, RadioCard, Select, Switch, Table, Td, Th } from '../components/ui';
+import { Avatar, Badge, Button, Card, CardHeader, Dialog, Field, Input, RadioCard, Segmented, Select, Switch, Table, Td, Th } from '../components/ui';
+import { BUILT_IN, LEVELS, MODULES, facultyPerms, levelOf } from '../lib/permissions';
 import { href } from '../lib/router';
-import { LATE, POLICY, useStore, type Access, type Late, type Policy, type Role } from '../lib/store';
+import { LATE, POLICY, useStore, type Access, type CustomRole, type Late, type Level, type Policy } from '../lib/store';
 import { useUI } from '../lib/ui-state';
 import { cn } from '../lib/utils';
 import { useShop } from '../lib/shop';
@@ -84,7 +85,7 @@ function General() {
 }
 
 function UserAccess() {
-  const { members, me, updateMember, removeMember, access, setAccess, academy, newCode } = useStore();
+  const { members, me, updateMember, removeMember, access, setAccess, academy, newCode, roles } = useStore();
   const open = useUI((u) => u.open);
   const rows: [keyof Access, string, string][] = [
     ['academyCreatesLogins', 'Academy creates student logins', 'Add students and hand them a login ID and temporary password.'],
@@ -103,7 +104,7 @@ function UserAccess() {
             {members.map((m) => (
               <tr key={m.id}>
                 <Td><span className="flex items-center gap-3"><Avatar name={m.name} /><span><span className="block font-semibold">{m.name}</span><span className="text-2xs text-muted">{m.email}</span></span></span></Td>
-                <Td><Select aria-label={`Access for ${m.name}`} value={m.role} onChange={(e) => updateMember(m.id, { role: e.target.value as Role })} className="w-44"><option>Academy admin</option><option>Exam manager</option><option>Faculty</option><option>Reviewer</option></Select></Td>
+                <Td><Select aria-label={`Access for ${m.name}`} value={m.role} onChange={(e) => updateMember(m.id, { role: e.target.value })} className="w-44">{[...BUILT_IN.map((r) => r.name), ...roles.map((r) => r.name)].map((r) => <option key={r}>{r}</option>)}</Select></Td>
                 <Td><Button size="sm" variant="ghost" onClick={() => { removeMember(m.id); toast('Removed'); }}>Remove</Button></Td>
               </tr>
             ))}
@@ -118,35 +119,90 @@ function UserAccess() {
   );
 }
 
-const PERMS = ['Dashboard & reports', 'Batches & students', 'Faculty & access', 'Courses & materials', 'Create & schedule tests', 'Evaluate & publish results', 'Fees & revenue', 'Academy settings'];
-const ROLE_PERMS: Record<string, boolean[]> = {
-  'Academy admin': [true, true, true, true, true, true, true, true],
-  'Exam manager': [true, true, false, true, true, true, false, false],
-  Faculty: [false, true, false, true, true, false, false, false],
-  Reviewer: [false, false, false, false, false, true, false, false],
-};
+// ---------- Roles & permissions (from the client's Faculty UI brief) ----------
+const LEVEL_CHIP: Record<Level | 'none', string> = { full: 'bg-fg text-bg', assigned: 'bg-pop text-pop-fg', limited: 'bg-subtle ring-1 ring-inset ring-border-strong', view: 'bg-subtle text-muted ring-1 ring-inset ring-border', none: 'text-faint' };
 function Roles() {
-  const [m, setM] = useState(ROLE_PERMS);
+  const { roles, removeRole } = useStore();
+  const [mod, setMod] = useState(MODULES[0].name);
+  const [edit, setEdit] = useState<CustomRole | 'new' | null>(null);
+  const [safe, setSafe] = useState({ marks: true, publish: false });
+  const m = MODULES.find((x) => x.name === mod)!;
   return (
-    <Card>
-      <CardHeader title="Roles & permissions" desc="What each role can open. Changes apply to everyone with that role." />
-      <div className="overflow-x-auto">
-        <table className="w-full min-w-[640px] text-sm">
-          <thead><tr className="text-left text-xs text-muted"><th className="px-5 py-3 font-medium">Area</th>{Object.keys(m).map((r) => <th key={r} className="px-3 py-3 text-center font-medium">{r}</th>)}</tr></thead>
-          <tbody>{PERMS.map((p, i) => (
-            <tr key={p} className="border-t border-border"><td className="px-5 py-3 font-medium">{p}</td>
-              {Object.keys(m).map((r) => (
-                <td key={r} className="px-3 py-3 text-center">
-                  <button disabled={r === 'Academy admin'} onClick={() => setM({ ...m, [r]: m[r].map((v, j) => (j === i ? !v : v)) })} aria-label={`${r}: ${p}`}
-                    className={cn('mx-auto grid size-7 place-items-center rounded-full transition', m[r][i] ? 'bg-fg text-bg' : 'bg-subtle text-transparent hover:text-faint', r === 'Academy admin' && 'cursor-not-allowed opacity-70')}><Check className="size-3.5" strokeWidth={3} /></button>
-                </td>
-              ))}
-            </tr>
-          ))}</tbody>
-        </table>
+    <>
+      <Card>
+        <CardHeader title="Roles" desc="The four built-in roles, plus any your academy creates." action={<Button size="sm" variant="primary" onClick={() => setEdit('new')}><Plus /> New role</Button>} />
+        <div className="grid gap-2 p-5 pt-2 sm:grid-cols-2">
+          {BUILT_IN.map((r) => <div key={r.name} className="rounded-xl bg-subtle p-3"><div className="flex items-center gap-2 text-sm font-semibold">{r.name}<Badge>{r.kind}</Badge></div><p className="mt-1 text-xs text-muted">{r.desc}</p></div>)}
+          {roles.map((r) => (
+            <div key={r.id} className="rounded-xl p-3 ring-1 ring-inset ring-border-strong">
+              <div className="flex items-center gap-2 text-sm font-semibold">{r.name}<Badge tone="pop">Custom</Badge><span className="ml-auto flex gap-1"><Button size="sm" variant="ghost" onClick={() => setEdit(r)}>Edit</Button><Button size="sm" variant="ghost" onClick={() => { removeRole(r.id); toast('Role removed'); }}>Remove</Button></span></div>
+              <p className="mt-1 text-xs text-muted">{r.desc} · {Object.keys(r.perms).length} features on</p>
+            </div>
+          ))}
+        </div>
+      </Card>
+
+      <Card>
+        <CardHeader title="Permissions" desc="What each role can do, module by module." />
+        <div className="flex flex-wrap items-center gap-2 px-5 pb-3">
+          <Segmented value={mod} onChange={setMod} options={MODULES.map((x) => ({ value: x.name, label: x.name }))} />
+          <div className="flex flex-wrap gap-2 text-2xs text-muted sm:ml-auto">{(Object.keys(LEVELS) as (Level | 'none')[]).map((l) => <span key={l} title={LEVELS[l].desc} className={cn('rounded-full px-2 py-0.5 font-semibold', LEVEL_CHIP[l])}>{LEVELS[l].label}</span>)}</div>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="w-full min-w-[760px] text-sm">
+            <thead><tr className="text-left text-xs text-muted"><th className="px-5 py-2.5 font-medium">Feature</th>{BUILT_IN.map((r) => <th key={r.name} className="px-3 py-2.5 font-medium">{r.name}</th>)}{roles.map((r) => <th key={r.id} className="px-3 py-2.5 font-medium">{r.name}</th>)}</tr></thead>
+            <tbody>{m.rows.map(([f, ...cells]) => (
+              <tr key={f} className="border-t border-border">
+                <td className="px-5 py-2.5 font-medium">{f}</td>
+                {cells.map((c, i) => <td key={i} className="px-3 py-2.5"><span className={cn('inline-block rounded-full px-2 py-0.5 text-2xs font-semibold', LEVEL_CHIP[levelOf(c)])}>{c}</span></td>)}
+                {roles.map((r) => { const l = r.perms[f] ?? 'none'; return <td key={r.id} className="px-3 py-2.5"><span className={cn('inline-block rounded-full px-2 py-0.5 text-2xs font-semibold', LEVEL_CHIP[l])}>{LEVELS[l].label}</span></td>; })}
+              </tr>
+            ))}</tbody>
+          </table>
+        </div>
+        {m.note && <p className="border-t border-border px-5 py-3 text-xs text-muted">{m.note}</p>}
+      </Card>
+
+      <Card>
+        <CardHeader title="Evaluation safeguards" desc="Reviewers enter marks but can't publish results or change questions. Every change to marks is recorded." />
+        <div className="divide-y divide-border">
+          <Row title="Second approval for changing marks" desc="A change to marks after evaluation waits for an Exam manager or Admin to approve."><Switch label="Second approval for marks" checked={safe.marks} onCheckedChange={(v) => setSafe({ ...safe, marks: v })} /></Row>
+          <Row title="Second approval before publishing results" desc="Final results go out only after a second person approves."><Switch label="Second approval for results" checked={safe.publish} onCheckedChange={(v) => setSafe({ ...safe, publish: v })} /></Row>
+          <Row title="Show who changed marks or answers" desc="The Academy Admin sees every change, who made it and when."><Badge tone="pop">Always on</Badge></Row>
+        </div>
+      </Card>
+      {edit && <RoleDialog role={edit === 'new' ? null : edit} onClose={() => setEdit(null)} />}
+    </>
+  );
+}
+
+/** Create or edit a custom role: every feature has a switch; when on, pick its level. */
+function RoleDialog({ role, onClose }: { role: CustomRole | null; onClose: () => void }) {
+  const { saveRole } = useStore();
+  const [name, setName] = useState(role?.name ?? ''), [desc, setDesc] = useState(role?.desc ?? '');
+  const [perms, setPerms] = useState<CustomRole['perms']>(role?.perms ?? facultyPerms());
+  const [mod, setMod] = useState(MODULES[0].name);
+  const taken = BUILT_IN.some((r) => r.name.toLowerCase() === name.trim().toLowerCase());
+  const set = (f: string, l: Level | null) => setPerms((p) => { const n = { ...p }; if (l) n[f] = l; else delete n[f]; return n; });
+  const rows = MODULES.find((x) => x.name === mod)!.rows;
+  return (
+    <Dialog wide open onOpenChange={(v) => !v && onClose()} title={role ? `Edit role · ${role.name}` : 'New role'} desc="Switch on what this role can use, and how much. Starts from Faculty's permissions."
+      footer={<><Button onClick={onClose}>Cancel</Button><Button variant="primary" disabled={!name.trim() || taken} onClick={() => { saveRole({ name: name.trim(), desc: desc.trim(), perms }, role?.id); toast.success(role ? 'Role saved' : 'Role created'); onClose(); }}>{role ? 'Save role' : 'Create role'}</Button></>}>
+      <div className="space-y-4 pb-2">
+        <div className="grid gap-4 sm:grid-cols-2">
+          <Field label="Role name" hint={taken ? <span className="text-bad">That's a built-in role name.</span> : undefined}><Input autoFocus value={name} onChange={(e) => setName(e.target.value)} placeholder="Content coordinator" /></Field>
+          <Field label="What they do" optional><Input value={desc} onChange={(e) => setDesc(e.target.value)} placeholder="Uploads study material for all batches" /></Field>
+        </div>
+        <Segmented value={mod} onChange={setMod} options={MODULES.map((x) => ({ value: x.name, label: <>{x.name}<span className="tnum text-faint">{x.rows.filter(([f]) => perms[f]).length}</span></> }))} />
+        <ul className="divide-y divide-border rounded-xl ring-1 ring-inset ring-border">{rows.map(([f]) => (
+          <li key={f} className="flex items-center gap-3 px-3 py-2">
+            <Switch label={f} checked={!!perms[f]} onCheckedChange={(v) => set(f, v ? 'view' : null)} />
+            <span className={cn('flex-1 text-sm', !perms[f] && 'text-muted')}>{f}</span>
+            {perms[f] && <Select aria-label={`${f} level`} value={perms[f]} onChange={(e) => set(f, e.target.value as Level)} className="w-36">{(['full', 'assigned', 'limited', 'view'] as const).map((l) => <option key={l} value={l}>{LEVELS[l].label}</option>)}</Select>}
+          </li>
+        ))}</ul>
       </div>
-      <div className="flex justify-end border-t border-border px-5 py-4"><Button variant="primary" onClick={() => toast.success('Permissions saved')}>Save permissions</Button></div>
-    </Card>
+    </Dialog>
   );
 }
 

@@ -24,7 +24,14 @@ export interface Batch {
   id: string; name: string; course: Course; facultyId: string; createdAt: number;
   status: 'active' | 'archived'; startDate: string; schedule: string; facultyIds: string[]; announcements: Announcement[];
 }
-export interface Member { id: string; name: string; email: string; phone?: string; role: Role; batchIds: string[]; subjects?: string[]; invitedAt: number }
+/** pending = account made but they haven't signed in yet; active after the first sign-in; suspended by the academy. */
+export type MemberStatus = 'pending' | 'active' | 'suspended';
+/** Work the academy sends to a faculty member (e.g. "Make a question bank"); it shows in their tasks. */
+export interface FacultyTask { id: string; text: string; due?: string; at: number; done: boolean }
+/** A role the academy made: each feature is off (missing) or on at a level. */
+export type Level = 'full' | 'assigned' | 'limited' | 'view';
+export interface CustomRole { id: string; name: string; desc: string; perms: Record<string, Level> }
+export interface Member { id: string; name: string; email: string; phone?: string; dob?: string; photo?: string; status: MemberStatus; lastLogin?: number; tasks: FacultyTask[]; role: string; batchIds: string[]; subjects?: string[]; invitedAt: number }
 /** Something the student did, shown on their profile (newest first). */
 export interface StudentActivity { at: number; kind: 'mcq' | 'test' | 'batch' | 'device' | 'login'; text: string }
 export interface Student {
@@ -71,7 +78,7 @@ export interface Data {
   academy: Academy; me: Me;
   batches: Batch[]; members: Member[]; students: Student[]; joinRequests: JoinRequest[]; exams: Exam[];
   events: CalendarEvent[]; recorded: RecordedDay[]; codes: JoinCode[]; courses: CourseInfo[]; revenue: Revenue; feed: Feed;
-  activity: Activity[]; defaults: Defaults; access: Access;
+  activity: Activity[]; defaults: Defaults; access: Access; roles: CustomRole[];
 }
 
 export type NewStudent = StudentDetails & Pick<Student, 'batchId'> & Partial<Pick<Student, 'joinedVia' | 'admissionDate'>>;
@@ -92,7 +99,11 @@ interface State extends Data {
   removeStudents: (ids: string[]) => void;
   deleteStudent: (id: string) => void;
   decideDevice: (id: string, approve: boolean) => void;
-  invite: (m: Omit<Member, 'id' | 'invitedAt'>) => void;
+  invite: (m: Omit<Member, 'id' | 'invitedAt' | 'status' | 'tasks'>) => Member;
+  addTask: (memberId: string, text: string, due?: string) => void;
+  removeTask: (memberId: string, taskId: string) => void;
+  saveRole: (r: Omit<CustomRole, 'id'>, id?: string) => void;
+  removeRole: (id: string) => void;
   updateMember: (id: string, m: Partial<Member>) => void;
   removeMember: (id: string) => void;
   addEvent: (e: Omit<CalendarEvent, 'id'>) => void;
@@ -123,6 +134,8 @@ export const defaultPassword = (name: string, dob: string) => {
   const l = name.replace(/[^A-Za-z]/g, '').slice(0, 4).toLowerCase();
   return `${l.charAt(0).toUpperCase()}${l.slice(1)}@${dob.slice(0, 4)}`;
 };
+/** Faculty default password: first 4 letters of the name (first one capital) @ last 4 digits of the phone, e.g. Rame@3210. */
+export const facultyPassword = (name: string, phone: string) => `${defaultPassword(name, '0000').split('@')[0]}@${phone.replace(/\D/g, '').slice(-4)}`;
 export const validEmail = (v: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v.trim());
 export const randomCode = (prefix = 'PF') => `${prefix}-${pick(N, 2)}${pick(L, 3)}`;
 const today = () => new Date().toISOString().slice(0, 10);
@@ -136,9 +149,10 @@ export const emptyData = (): Data => ({
   activity: [],
   defaults: { policy: 'clean', late: 'none', flagBelow: 0.7 },
   access: { academyCreatesLogins: true, joinWithCode: true, approveJoins: true, otpReset: false },
+  roles: [],
 });
 
-const DATA_KEYS: (keyof Data)[] = ['sample', 'academy', 'me', 'batches', 'members', 'students', 'joinRequests', 'exams', 'events', 'recorded', 'codes', 'courses', 'revenue', 'feed', 'activity', 'defaults', 'access'];
+const DATA_KEYS: (keyof Data)[] = ['sample', 'academy', 'me', 'batches', 'members', 'students', 'joinRequests', 'exams', 'events', 'recorded', 'codes', 'courses', 'revenue', 'feed', 'activity', 'defaults', 'access', 'roles'];
 
 export const useStore = create<State>()(
   persist(
@@ -210,7 +224,15 @@ export const useStore = create<State>()(
         }) })),
         removeStudents: (ids) => { const pick = new Set(ids); set((s) => ({ students: s.students.filter((x) => !pick.has(x.id)) })); log('student', `${ids.length} students removed`); },
         deleteStudent: (id) => set((s) => ({ students: s.students.filter((x) => x.id !== id) })),
-        invite: (m) => { set((s) => ({ members: [...s.members, { ...m, id: uid(), invitedAt: Date.now() }] })); log('team', `${m.name} added as ${m.role}`); },
+        invite: (m) => {
+          const member: Member = { ...m, id: uid(), invitedAt: Date.now(), status: 'pending', tasks: [] };
+          set((s) => ({ members: [...s.members, member] })); log('team', `${m.name} added as ${m.role}`);
+          return member;
+        },
+        addTask: (memberId, text, due) => set((s) => ({ members: s.members.map((x) => (x.id === memberId ? { ...x, tasks: [{ id: uid(), text, due, at: Date.now(), done: false }, ...x.tasks] } : x)) })),
+        removeTask: (memberId, taskId) => set((s) => ({ members: s.members.map((x) => (x.id === memberId ? { ...x, tasks: x.tasks.filter((t) => t.id !== taskId) } : x)) })),
+        saveRole: (r, id) => set((s) => ({ roles: id ? s.roles.map((x) => (x.id === id ? { ...r, id } : x)) : [...s.roles, { ...r, id: uid() }] })),
+        removeRole: (id) => set((s) => ({ roles: s.roles.filter((x) => x.id !== id) })),
         updateMember: (id, m) => set((s) => ({ members: s.members.map((x) => (x.id === id ? { ...x, ...m } : x)) })),
         removeMember: (id) => set((s) => ({ members: s.members.filter((x) => x.id !== id) })),
         addEvent: (e) => set((s) => ({ events: [...s.events, { ...e, id: uid() }] })),
@@ -242,7 +264,7 @@ export const useStore = create<State>()(
       };
     },
     {
-      name: 'pf-academy-v6',
+      name: 'pf-academy-v7',
       storage: createJSONStorage(() => {
         try { localStorage.setItem('__t', '1'); localStorage.removeItem('__t'); return localStorage; }
         catch { const m = new Map<string, string>(); return { getItem: (k) => m.get(k) ?? null, setItem: (k, v) => void m.set(k, v), removeItem: (k) => void m.delete(k) }; }
