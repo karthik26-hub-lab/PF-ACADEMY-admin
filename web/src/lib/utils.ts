@@ -85,9 +85,13 @@ export function photoToDataUrl(file: File, size = 160): Promise<string> {
       const c = document.createElement('canvas'), s = Math.min(img.width, img.height);
       c.width = c.height = size;
       c.getContext('2d')!.drawImage(img, (img.width - s) / 2, (img.height - s) / 2, s, s, 0, 0, size, size);
-      URL.revokeObjectURL(img.src); resolve(c.toDataURL('image/jpeg', 0.85));
+      resolve(c.toDataURL('image/jpeg', 0.85));
     };
-    img.onerror = reject;
-    img.src = URL.createObjectURL(file);
+    img.onerror = () => reject(new Error('unreadable'));
+    // A data URL works everywhere; blob: links can be blocked inside embedded pages (the shared preview).
+    const r = new FileReader();
+    r.onload = () => { img.src = String(r.result); };
+    r.onerror = () => reject(new Error('unreadable'));
+    r.readAsDataURL(file);
   });
 }

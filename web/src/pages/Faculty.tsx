@@ -4,19 +4,18 @@ import { motion } from 'framer-motion';
 import { Ban, CalendarClock, ChevronRight, ClipboardList, Eye, Layers, Mail, MoreHorizontal, Pencil, Phone, Plus, Search, Send, Trash2, UserCheck, Users, X } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { toast } from 'sonner';
-import { Ring } from '../components/charts';
+import { BatchSubjectPicker, CourseLegend, subjectsDone, type BatchSubjects } from '../components/BatchSubjectPicker';
 import { FacultyDialog } from '../components/FacultyDialog';
 import { Page } from '../components/layout/Page';
 import { Avatar, Badge, Button, Card, Dialog, DropdownContent, DropdownItem, DropdownMenu, DropdownSeparator, DropdownTrigger, EmptyState, Field, Input, Segmented, Select, Textarea, btn } from '../components/ui';
 import { BUILT_IN } from '../lib/permissions';
 import { href } from '../lib/router';
-import { COURSES, SUBJECTS, useStore, type Course, type Member, type MemberStatus } from '../lib/store';
+import { COURSES, COURSE_TONE, SUBJECTS, useStore, type Member, type MemberStatus } from '../lib/store';
 import { useUI } from '../lib/ui-state';
 import { cn, fmtDate, fmtDateTime } from '../lib/utils';
 import { StudentTable } from './Students';
 
 const STATUS: Record<MemberStatus, { label: string; tone: 'warn' | 'ink' | 'bad' }> = { pending: { label: 'Invitation pending', tone: 'warn' }, active: { label: 'Active', tone: 'ink' }, suspended: { label: 'Suspended', tone: 'bad' } };
-const COURSE_BAR = ['bg-fg', 'bg-fg/55', 'hatch'];
 type Popup = { kind: 'profile' | 'edit' | 'assign' | 'tasks' | 'remove' | 'students'; m: Member } | null;
 
 export function Faculty() {
@@ -35,13 +34,13 @@ export function Faculty() {
 
   return (
     <Page crumbs={[{ label: 'Academics', href: href({ page: 'academics' }) }, { label: 'Faculty' }]} actions={<Button variant="primary" onClick={() => open('invite')}><Plus /> Add faculty</Button>}>
-      <div className="mb-5"><h1 className="text-[28px] font-bold tracking-[-0.03em]">Faculty</h1><p className="text-sm text-muted">Create faculty accounts, assign subjects and batches, and send them work.</p></div>
+      <div className="mb-5 flex flex-wrap items-end justify-between gap-3"><div><h1 className="text-[28px] font-bold tracking-[-0.03em]">Faculty</h1><p className="text-sm text-muted">Create faculty accounts, assign batches and subjects, and send them work.</p></div><div className="flex items-center gap-2 rounded-full bg-panel px-3 py-1.5 ring-1 ring-black/[0.04] dark:ring-white/[0.06]"><span className="text-2xs font-semibold">Batch colours</span><CourseLegend /></div></div>
 
       {/* Search and filters */}
       <div className="mb-5 flex flex-wrap items-center gap-2">
         <div className="relative w-full sm:w-64"><Search className="pointer-events-none absolute left-3.5 top-1/2 size-4 -translate-y-1/2 text-faint" /><Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search name, email or subject" className="pl-10" aria-label="Search faculty" /></div>
         <Select aria-label="Access role" value={role} onChange={(e) => setRole(e.target.value)} className="w-full sm:w-44"><option value="all">All access roles</option>{[...BUILT_IN.map((r) => r.name), ...roles.map((r) => r.name)].map((r) => <option key={r}>{r}</option>)}</Select>
-        <Select aria-label="Subject" value={subject} onChange={(e) => setSubject(e.target.value)} className="w-full sm:w-48"><option value="all">All subjects</option>{SUBJECTS.map((s) => <option key={s}>{s}</option>)}</Select>
+        <Select aria-label="Subject" value={subject} onChange={(e) => setSubject(e.target.value)} className="w-full sm:w-48"><option value="all">All subjects</option>{[...new Set([...members.flatMap((m) => m.subjects ?? []), ...SUBJECTS])].sort().map((s) => <option key={s}>{s}</option>)}</Select>
         <Select aria-label="Assigned batch" value={batch} onChange={(e) => setBatch(e.target.value)} className="w-full sm:w-52"><option value="all">All batches</option>{batches.filter((b) => b.status === 'active').map((b) => <option key={b.id} value={b.id}>{b.name}</option>)}</Select>
         <Segmented value={status} onChange={setStatus} options={[{ value: 'all', label: 'All' }, { value: 'active', label: 'Active' }, { value: 'pending', label: 'Pending', count: members.filter((m) => m.status === 'pending').length }, { value: 'suspended', label: 'Suspended' }]} />
         {filtered && <Button variant="ghost" size="sm" onClick={() => { setRole('all'); setSubject('all'); setBatch('all'); setStatus('all'); }}><X /> Clear</Button>}
@@ -53,7 +52,7 @@ export function Faculty() {
           {shown.map((m, i) => {
             const mine = m.batchIds.map((id) => bmap.get(id)).filter(Boolean);
             const byCourse = COURSES.map((c) => mine.filter((b) => b!.course === c).length);
-            const n = studentsOf(m), share = students.length ? Math.round((n / students.length) * 100) : 0;
+            const n = studentsOf(m);
             return (
               <motion.div key={m.id} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: Math.min(i, 9) * 0.03 }}
                 className={cn('flex flex-col rounded-2xl bg-panel p-5 ring-1 ring-black/[0.04] dark:ring-white/[0.06]', m.status === 'suspended' && 'opacity-70')}>
@@ -69,15 +68,12 @@ export function Faculty() {
                   <div className="rounded-xl bg-subtle p-3">
                     <div className="flex items-center gap-1.5 text-2xs text-muted"><Layers className="size-3" />Batches</div>
                     <div className="tnum mt-0.5 text-lg font-bold leading-tight">{mine.length}</div>
-                    <div className="mt-2 flex h-1.5 gap-0.5 overflow-hidden rounded-full bg-border">{byCourse.map((v, k) => v ? <span key={k} className={COURSE_BAR[k]} style={{ flex: v }} /> : null)}</div>
-                    <div className="mt-1.5 flex gap-2 text-[10px] text-muted">{COURSES.map((c, k) => <span key={c} className="flex items-center gap-1"><i className={cn('size-1.5 rounded-full', COURSE_BAR[k])} />{c.replace('CA ', '').slice(0, 3)} {byCourse[k]}</span>)}</div>
+                    <div className="mt-2 flex h-2 gap-0.5 overflow-hidden rounded-full bg-border" title={COURSES.map((c, k) => `${c}: ${byCourse[k]}`).join(' · ')}>{byCourse.map((v, k) => v ? <span key={k} className={cn('tone-bar', COURSE_TONE[COURSES[k]])} style={{ flex: v }} /> : null)}</div>
                   </div>
                   <button onClick={() => setPop({ kind: 'students', m })} className="rounded-xl bg-subtle p-3 text-left transition hover:bg-hover">
                     <div className="flex items-center gap-1.5 text-2xs text-muted"><Users className="size-3" />Students<ChevronRight className="ml-auto size-3" /></div>
-                    <div className="mt-0.5 flex items-center justify-between gap-2">
-                      <div><div className="tnum text-lg font-bold leading-tight">{n}</div><div className="text-[10px] text-muted">{share}% of the academy</div></div>
-                      <Ring value={share} size={38} stroke={5} tone="pop" label={`${share}% of all students`} />
-                    </div>
+                    <div className="tnum mt-0.5 text-lg font-bold leading-tight">{n}</div>
+                    <div className="mt-2 text-[10px] text-muted">Across {mine.length} {mine.length === 1 ? 'batch' : 'batches'}</div>
                   </button>
                 </div>
                 <div className="mt-2 truncate text-2xs text-muted">{mine.map((b) => b!.name).join(' · ') || 'No batches assigned'}</div>
@@ -109,7 +105,7 @@ export function Faculty() {
       )}
       {pop?.kind === 'profile' && <ProfileDialog m={members.find((x) => x.id === pop.m.id) ?? pop.m} students={studentsOf(pop.m)} onClose={close} onEdit={() => setPop({ kind: 'edit', m: pop.m })} />}
       <FacultyDialog open={pop?.kind === 'edit'} member={pop?.kind === 'edit' ? pop.m : null} onClose={close} />
-      {pop?.kind === 'assign' && <AssignDialog m={pop.m} onClose={close} onSave={(patch) => { updateMember(pop.m.id, patch); toast.success('Assignments saved'); close(); }} />}
+      {pop?.kind === 'assign' && <AssignDialog m={pop.m} onClose={close} />}
       {pop?.kind === 'tasks' && <TasksDialog m={members.find((x) => x.id === pop.m.id) ?? pop.m} onClose={close} />}
       {pop?.kind === 'remove' && (
         <Dialog open onOpenChange={(v) => !v && close()} title={`Remove ${pop.m.name}?`} desc="Their portal account is deleted and they are taken off their batches. Their past evaluations stay in the records."
@@ -137,31 +133,24 @@ function ProfileDialog({ m, students, onClose, onEdit }: { m: Member; students: 
         ))}</div>
         <dl className="grid gap-x-6 gap-y-2.5 rounded-xl p-1 text-sm sm:grid-cols-2">{facts.map(([k, v]) => <div key={k}><dt className="text-2xs text-muted">{k}</dt><dd className="break-all font-medium">{v}</dd></div>)}</dl>
         <section><h4 className="mb-1.5 text-2xs font-semibold uppercase tracking-wide text-faint">Subjects</h4><div className="flex flex-wrap gap-1.5">{m.subjects?.length ? m.subjects.map((s) => <span key={s} className="rounded-full bg-subtle px-2.5 py-1 text-xs">{s}</span>) : <span className="text-xs text-muted">None assigned</span>}</div></section>
-        <section><h4 className="mb-1.5 text-2xs font-semibold uppercase tracking-wide text-faint">Batches</h4><div className="flex flex-wrap gap-1.5">{batches.length ? batches.map((b) => <span key={b.id} className="rounded-full bg-subtle px-2.5 py-1 text-xs">{b.name}</span>) : <span className="text-xs text-muted">None assigned</span>}</div></section>
+        <section><h4 className="mb-1.5 text-2xs font-semibold uppercase tracking-wide text-faint">Batches and subjects</h4>{batches.length ? <ul className="space-y-1.5">{batches.map((b) => (
+          <li key={b.id} className="flex flex-wrap items-center gap-2 rounded-xl bg-subtle px-3 py-2 text-xs"><i className={cn('tone-bar size-2.5 rounded-full', COURSE_TONE[b.course])} /><span className="font-semibold">{b.name}</span><span className="text-muted">{m.batchSubjects?.[b.id]?.join(', ') || 'No subject set'}</span></li>
+        ))}</ul> : <span className="text-xs text-muted">None assigned</span>}</section>
       </div>
     </Dialog>
   );
 }
 
-/** Subjects, then batches (filter by course, search). Access is changed from Edit details. */
-function AssignDialog({ m, onClose, onSave }: { m: Member; onClose: () => void; onSave: (p: Partial<Member>) => void }) {
-  const { batches } = useStore();
-  const [subjects, setSubjects] = useState(m.subjects ?? []), [batchIds, setBatchIds] = useState(m.batchIds);
-  const [course, setCourse] = useState<'all' | Course>('all'), [q, setQ] = useState('');
-  const flip = (arr: string[], v: string) => (arr.includes(v) ? arr.filter((x) => x !== v) : [...arr, v]);
-  const chip = (on: boolean, pop = false) => cn('rounded-full px-3 py-1.5 text-xs font-semibold ring-1 ring-inset transition-colors', on ? (pop ? 'bg-pop text-pop-fg ring-pop' : 'bg-fg text-bg ring-fg') : 'text-muted ring-border-strong hover:text-fg');
-  const shown = batches.filter((b) => b.status === 'active' && (course === 'all' || b.course === course) && b.name.toLowerCase().includes(q.toLowerCase()));
+/** Two steps: the batches they handle, then their subjects in each batch. Access is changed from Edit details. */
+function AssignDialog({ m, onClose }: { m: Member; onClose: () => void }) {
+  const assignFaculty = useStore((s) => s.assignFaculty);
+  const [step, setStep] = useState<'batches' | 'subjects'>('batches');
+  const [bs, setBs] = useState<BatchSubjects>(() => Object.fromEntries(m.batchIds.map((id) => [id, m.batchSubjects?.[id] ?? []])));
   return (
-    <Dialog wide open onOpenChange={(v) => !v && onClose()} title={`Assign · ${m.name}`} desc="The subjects they teach and the batches they handle."
-      footer={<><Button onClick={onClose}>Cancel</Button><Button variant="primary" onClick={() => onSave({ subjects, batchIds })}>Save</Button></>}>
-      <div className="space-y-5 pb-2">
-        <section><div className="mb-2 text-xs font-semibold">Subjects <span className="font-normal text-muted">· {subjects.length} picked</span></div>
-          <div className="flex flex-wrap gap-1.5">{SUBJECTS.map((s) => <button key={s} type="button" onClick={() => setSubjects(flip(subjects, s))} className={chip(subjects.includes(s))}>{s}</button>)}</div></section>
-        <section><div className="mb-2 flex flex-wrap items-center gap-2"><span className="mr-auto text-xs font-semibold">Batches <span className="font-normal text-muted">· {batchIds.length} picked</span></span>
-          <Segmented value={course} onChange={setCourse} options={[{ value: 'all', label: 'All' }, ...COURSES.map((c) => ({ value: c, label: c.replace('CA ', '') }))]} />
-          <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search batches" className="w-full sm:w-44" /></div>
-          <div className="flex max-h-56 flex-wrap gap-1.5 overflow-y-auto">{shown.map((b) => <button key={b.id} type="button" onClick={() => setBatchIds(flip(batchIds, b.id))} className={chip(batchIds.includes(b.id), true)}>{b.name}</button>)}</div></section>
-      </div>
+    <Dialog wide open onOpenChange={(v) => !v && onClose()} title={`Assign · ${m.name}`} desc={step === 'batches' ? 'Step 1 of 2 · Pick the batches they handle.' : 'Step 2 of 2 · Pick what they teach in each batch.'}
+      footer={step === 'batches' ? <><Button onClick={onClose}>Cancel</Button><Button variant="primary" onClick={() => setStep('subjects')} disabled={!Object.keys(bs).length}>Next: subjects</Button></>
+        : <><Button onClick={() => setStep('batches')}>Back</Button><Button variant="primary" disabled={!subjectsDone(bs)} onClick={() => { assignFaculty(m.id, bs); toast.success('Assignments saved'); onClose(); }}>Save</Button></>}>
+      <div className="pb-2"><BatchSubjectPicker step={step} value={bs} onChange={setBs} /></div>
     </Dialog>
   );
 }

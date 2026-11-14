@@ -172,13 +172,13 @@ export function Overview() {
             {s.courses.length ? (
               <div className="grid gap-3 sm:grid-cols-3">
                 {s.courses.map((c, i) => {
-                  const max = Math.max(...s.courses.map((x) => x.materials));
+                  const n = (id: string) => s.materials.filter((m) => m.courseId === id && m.status !== 'archived').length, max = Math.max(1, ...s.courses.map((x) => n(x.id)));
                   return (
-                    <a key={c.id} href={href({ page: 'learning' })} className="group flex flex-col rounded-2xl bg-subtle p-4 transition hover:bg-hover">
+                    <a key={c.id} href={href({ page: 'course', id: c.id })} className="group flex flex-col rounded-2xl bg-subtle p-4 transition hover:bg-hover">
                       <div className="flex items-center justify-between"><span className="grid size-9 place-items-center rounded-full bg-panel"><BookOpen className="size-4" /></span>{c.active && <Badge tone="pop">Active</Badge>}</div>
                       <div className="mt-4 text-sm font-bold">{c.name}</div>
-                      <div className="text-2xs text-muted">{c.subjects} subjects · {c.materials} materials</div>
-                      <div className="mt-3 h-2 overflow-hidden rounded-full hatch"><motion.div className={cn('h-full rounded-full', i === 1 ? 'bg-pop' : 'bg-fg')} initial={{ width: 0 }} animate={{ width: `${(c.materials / max) * 100}%` }} transition={{ duration: 0.8, delay: 0.3 + i * 0.1, ease }} /></div>
+                      <div className="text-2xs text-muted">{c.subjects.length} subjects · {n(c.id)} materials</div>
+                      <div className="mt-3 h-2 overflow-hidden rounded-full hatch"><motion.div className={cn('h-full rounded-full', i === 1 ? 'bg-pop' : 'bg-fg')} initial={{ width: 0 }} animate={{ width: `${(n(c.id) / max) * 100}%` }} transition={{ duration: 0.8, delay: 0.3 + i * 0.1, ease }} /></div>
                       <div className="mt-3 flex items-center gap-1 text-2xs font-semibold text-muted group-hover:text-fg">View in detail <ArrowRight className="size-3 transition-transform group-hover:translate-x-0.5" /></div>
                     </a>
                   );

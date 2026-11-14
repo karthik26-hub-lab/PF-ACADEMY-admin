@@ -29,7 +29,7 @@ export type AnnCategory = 'General' | 'Academic' | 'Examination' | 'Deadlines' |
 export type AnnDisplay = 'notification' | 'popup' | 'both';
 export interface Announcement {
   id: string; title: string; category: AnnCategory; description: string; files: string[]; links: string[];
-  who: 'all' | 'courses' | 'batches'; whoIds: string[];
+  who: 'all' | 'courses' | 'batches' | 'students'; whoIds: string[];
   display: AnnDisplay; popup: { mode: 'once' | 'daily' | 'custom' | 'every'; times: number };
   /** Empty publishAt = publish immediately; empty expiresAt = until removed. */
   publishAt?: string; expiresAt?: string;
@@ -46,7 +46,7 @@ export interface FacultyTask { id: string; text: string; due?: string; at: numbe
 /** A role the academy made: each feature is off (missing) or on at a level. */
 export type Level = 'full' | 'assigned' | 'limited' | 'view';
 export interface CustomRole { id: string; name: string; desc: string; perms: Record<string, Level> }
-export interface Member { id: string; name: string; email: string; phone?: string; dob?: string; photo?: string; status: MemberStatus; lastLogin?: number; tasks: FacultyTask[]; role: string; batchIds: string[]; subjects?: string[]; /** The subject they teach in each batch. */ batchSubjects?: Record<string, string>; invitedAt: number }
+export interface Member { id: string; name: string; email: string; phone?: string; dob?: string; photo?: string; status: MemberStatus; lastLogin?: number; tasks: FacultyTask[]; role: string; batchIds: string[]; subjects?: string[]; /** The subjects they teach in each batch. */ batchSubjects?: Record<string, string[]>; invitedAt: number }
 /** Something the student did, shown on their profile (newest first). */
 export interface StudentActivity { at: number; kind: 'mcq' | 'test' | 'batch' | 'device' | 'login'; text: string }
 export interface Student {
@@ -81,7 +81,8 @@ export interface CalendarEvent {
 /** One day of a course's recorded (self-paced) plan. Days are numbered, not dated. */
 export interface RecordedDay { id: string; course: Course; day: number; type: RecordedType; subject?: string; chapter?: string; videos: string[]; topics?: string }
 export interface JoinCode { id: string; code: string; batchId: string; limit: number; used: number; createdAt: number; active: boolean }
-export interface CourseInfo { id: string; name: Course; active: boolean; subjects: number; materials: number }
+import type { CourseInfo, Folder, Material } from './courses';
+export type { CourseInfo, Folder, Material };
 export interface Revenue { ebooks: number; tests: number; questionBanks: number; monthly: number[] }
 export interface Feed { uploads: { title: string; kind: string; at: number }[]; studentActs: { text: string; at: number }[] }
 export interface Activity { id: string; kind: 'exam' | 'student' | 'batch' | 'team' | 'settings'; text: string; at: number }
@@ -92,7 +93,7 @@ export interface Data {
   sample: boolean;
   academy: Academy; me: Me;
   batches: Batch[]; members: Member[]; students: Student[]; joinRequests: JoinRequest[]; exams: Exam[];
-  events: CalendarEvent[]; recorded: RecordedDay[]; codes: JoinCode[]; courses: CourseInfo[]; revenue: Revenue; feed: Feed;
+  events: CalendarEvent[]; recorded: RecordedDay[]; codes: JoinCode[]; courses: CourseInfo[]; materials: Material[]; folders: Folder[]; revenue: Revenue; feed: Feed;
   activity: Activity[]; defaults: Defaults; access: Access; roles: CustomRole[]; announcements: Announcement[];
 }
 
@@ -107,6 +108,13 @@ interface State extends Data {
   updateBatch: (id: string, b: Partial<Batch>) => void;
   deleteBatch: (id: string) => void;
   saveAnnouncement: (a: Omit<Announcement, 'id' | 'createdAt' | 'reads'>, id?: string) => void;
+  updateCourse: (id: string, c: Partial<CourseInfo>) => void;
+  saveMaterial: (m: Omit<Material, 'id' | 'updatedAt' | 'version' | 'by'>, id?: string, replaced?: boolean) => void;
+  patchMaterial: (id: string, m: Partial<Material>) => void;
+  removeMaterial: (id: string) => void;
+  saveFolder: (f: Omit<Folder, 'id'>, id?: string) => string;
+  /** Removes folders (and what's inside them) by id. */
+  removeFolders: (ids: string[]) => void;
   setAnnState: (id: string, state: Announcement['state']) => void;
   addStudent: (s: NewStudent) => { student: Student; password: string } | { error: string };
   addStudents: (rows: NewStudent[]) => { added: number; skipped: number };
@@ -122,6 +130,8 @@ interface State extends Data {
   removeRole: (id: string) => void;
   updateMember: (id: string, m: Partial<Member>) => void;
   removeMember: (id: string) => void;
+  /** Sets which batches a faculty member handles and their subjects in each; batches' faculty lists follow. */
+  assignFaculty: (memberId: string, batchSubjects: Record<string, string[]>) => void;
   addEvent: (e: Omit<CalendarEvent, 'id'>) => void;
   addEvents: (list: Omit<CalendarEvent, 'id'>[]) => void;
   addRecordedMany: (list: Omit<RecordedDay, 'id'>[]) => void;
@@ -160,7 +170,7 @@ export const emptyData = (): Data => ({
   sample: false,
   academy: { name: '', city: '', email: '', phone: '', code: '', gstin: '', address: '' },
   me: { name: '', email: '' },
-  batches: [], members: [], students: [], joinRequests: [], exams: [], events: [], recorded: [], codes: [], courses: [],
+  batches: [], members: [], students: [], joinRequests: [], exams: [], events: [], recorded: [], codes: [], courses: [], materials: [], folders: [],
   revenue: { ebooks: 0, tests: 0, questionBanks: 0, monthly: Array(12).fill(0) }, feed: { uploads: [], studentActs: [] },
   activity: [],
   defaults: { policy: 'clean', late: 'none', flagBelow: 0.7 },
@@ -168,7 +178,7 @@ export const emptyData = (): Data => ({
   roles: [], announcements: [],
 });
 
-const DATA_KEYS: (keyof Data)[] = ['sample', 'academy', 'me', 'batches', 'members', 'students', 'joinRequests', 'exams', 'events', 'recorded', 'codes', 'courses', 'revenue', 'feed', 'activity', 'defaults', 'access', 'roles', 'announcements'];
+const DATA_KEYS: (keyof Data)[] = ['sample', 'academy', 'me', 'batches', 'members', 'students', 'joinRequests', 'exams', 'events', 'recorded', 'codes', 'courses', 'materials', 'folders', 'revenue', 'feed', 'activity', 'defaults', 'access', 'roles', 'announcements'];
 
 export const useStore = create<State>()(
   persist(
@@ -214,6 +224,15 @@ export const useStore = create<State>()(
         updateBatch: (id, b) => set((s) => ({ batches: s.batches.map((x) => (x.id === id ? { ...x, ...b } : x)) })),
         deleteBatch: (id) => set((s) => ({ batches: s.batches.filter((x) => x.id !== id), students: s.students.filter((x) => x.batchId !== id) })),
         saveAnnouncement: (a, id) => set((s) => ({ announcements: id ? s.announcements.map((x) => (x.id === id ? { ...x, ...a } : x)) : [{ ...a, id: uid(), createdAt: Date.now(), reads: 0 }, ...s.announcements] })),
+        updateCourse: (id, c) => set((s) => ({ courses: s.courses.map((x) => (x.id === id ? { ...x, ...c } : x)) })),
+        // A replaced file bumps the version; everything else keeps it.
+        saveMaterial: (m, id, replaced) => set((s) => ({ materials: id
+          ? s.materials.map((x) => (x.id === id ? { ...x, ...m, updatedAt: Date.now(), version: x.version + (replaced ? 1 : 0) } : x))
+          : [{ ...m, id: uid(), updatedAt: Date.now(), version: 1, by: s.me.name || 'Admin' }, ...s.materials] })),
+        patchMaterial: (id, m) => set((s) => ({ materials: s.materials.map((x) => (x.id === id ? { ...x, ...m, updatedAt: Date.now() } : x)) })),
+        removeMaterial: (id) => set((s) => ({ materials: s.materials.filter((x) => x.id !== id) })),
+        saveFolder: (f, id) => { const fid = id ?? uid(); set((s) => ({ folders: id ? s.folders.map((x) => (x.id === id ? { ...x, ...f } : x)) : [...s.folders, { ...f, id: fid }] })); return fid; },
+        removeFolders: (ids) => set((s) => ({ folders: s.folders.filter((x) => !ids.includes(x.id)), materials: s.materials.filter((m) => !m.folderId || !ids.includes(m.folderId)) })),
         setAnnState: (id, state) => set((s) => ({ announcements: s.announcements.map((x) => (x.id === id ? { ...x, state } : x)) })),
         addStudent: (st) => {
           const student = makeStudent(st);
@@ -251,6 +270,13 @@ export const useStore = create<State>()(
         saveRole: (r, id) => set((s) => ({ roles: id ? s.roles.map((x) => (x.id === id ? { ...r, id } : x)) : [...s.roles, { ...r, id: uid() }] })),
         removeRole: (id) => set((s) => ({ roles: s.roles.filter((x) => x.id !== id) })),
         updateMember: (id, m) => set((s) => ({ members: s.members.map((x) => (x.id === id ? { ...x, ...m } : x)) })),
+        assignFaculty: (memberId, bs) => set((s) => {
+          const ids = Object.keys(bs);
+          return {
+            members: s.members.map((m) => (m.id !== memberId ? m : { ...m, batchIds: ids, batchSubjects: bs, subjects: [...new Set(Object.values(bs).flat())] })),
+            batches: s.batches.map((b) => ({ ...b, facultyIds: ids.includes(b.id) ? [...new Set([...b.facultyIds, memberId])] : b.facultyIds.filter((x) => x !== memberId) })),
+          };
+        }),
         removeMember: (id) => set((s) => ({ members: s.members.filter((x) => x.id !== id) })),
         addEvent: (e) => set((s) => ({ events: [...s.events, { ...e, id: uid() }] })),
         addEvents: (list) => { set((s) => ({ events: [...s.events, ...list.map((e) => ({ ...e, id: uid() }))] })); log('settings', `${list.length} calendar entries imported`); },
@@ -281,7 +307,7 @@ export const useStore = create<State>()(
       };
     },
     {
-      name: 'pf-academy-v8',
+      name: 'pf-academy-v11',
       storage: createJSONStorage(() => {
         try { localStorage.setItem('__t', '1'); localStorage.removeItem('__t'); return localStorage; }
         catch { const m = new Map<string, string>(); return { getItem: (k) => m.get(k) ?? null, setItem: (k, v) => void m.set(k, v), removeItem: (k) => void m.delete(k) }; }
@@ -314,4 +340,6 @@ export const POLICY: Record<Policy, { short: string; title: string; desc: string
 export const LATE: Record<Late, string> = { none: 'Not allowed after the deadline', '30m': 'Up to 30 minutes, marked late', '24h': 'Up to 24 hours, marked late' };
 export const SUBJECTS = ['Accounting', 'Corporate & Other Laws', 'Taxation', 'Cost & Management Accounting', 'Auditing & Ethics', 'Financial Management', 'Financial Reporting', 'Direct Tax Laws', 'Indirect Tax Laws'];
 export const COURSES: Course[] = ['CA Foundation', 'CA Inter', 'CA Final'];
+/** One colour per course wherever batches are split by course (tone classes from index.css). */
+export const COURSE_TONE: Record<Course, string> = { 'CA Foundation': 'tone-event', 'CA Inter': 'tone-class', 'CA Final': 'tone-exam' };
 export const inr = (n: number) => '₹' + Math.round(n).toLocaleString('en-IN');

@@ -4,10 +4,11 @@ import { useState } from 'react';
 import { toast } from 'sonner';
 import { Ring } from '../components/charts';
 import { AnnouncementWizard } from '../components/AnnouncementWizard';
+import { useCourseSubjects } from '../components/BatchSubjectPicker';
 import { Page } from '../components/layout/Page';
-import { Avatar, Badge, Button, Card, Dialog, DropdownContent, DropdownItem, DropdownMenu, DropdownSeparator, DropdownTrigger, EmptyState, Field, Input, Segmented, Select, Tabs, btn } from '../components/ui';
+import { Avatar, Badge, Button, Card, Dialog, DropdownContent, DropdownItem, DropdownMenu, DropdownSeparator, DropdownTrigger, EmptyState, Field, Input, Segmented, Tabs, btn } from '../components/ui';
 import { href, navigate } from '../lib/router';
-import { SUBJECTS, examStatus, useStore, type Announcement, type Batch, type Member, type Student, type StudentStatus } from '../lib/store';
+import { examStatus, useStore, type Announcement, type Batch, type Member, type Student, type StudentStatus } from '../lib/store';
 import { useUI } from '../lib/ui-state';
 import { cn, fmtDate } from '../lib/utils';
 import { AnnouncementDetail, AnnouncementList } from './Announcements';
@@ -113,8 +114,8 @@ export function BatchDetail({ id }: { id: string }) {
   const bands = BANDS.map((_, i) => scored.filter((x) => bandOf(last(x)) === i).length), maxBand = Math.max(1, ...bands);
   const shown = roster.filter((x) => (status === 'all' || x.status === status) && (band === null || (x.trend.length > 0 && bandOf(last(x)) === band)) && `${x.name} ${x.studentId}`.toLowerCase().includes(q.toLowerCase()));
   const mine = s.announcements.filter((a) => a.who === 'batches' && a.whoIds.includes(id));
-  const subjectIn = (m: Member) => m.batchSubjects?.[id] ?? m.subjects?.[0] ?? m.role;
-  const removeFaculty = (m: Member) => { s.updateBatch(id, { facultyIds: b.facultyIds.filter((x) => x !== m.id) }); s.updateMember(m.id, { batchIds: m.batchIds.filter((x) => x !== id) }); toast(`${m.name} removed from this batch`); };
+  const subjectIn = (m: Member) => m.batchSubjects?.[id]?.join(', ') || m.subjects?.[0] || m.role;
+  const removeFaculty = (m: Member) => { const { [id]: _gone, ...rest } = m.batchSubjects ?? {}; s.assignFaculty(m.id, Object.fromEntries(m.batchIds.filter((x) => x !== id).map((x) => [x, rest[x] ?? []]))); toast(`${m.name} removed from this batch`); };
   const viewSchedule = () => { useUI.setState({ calendarBatch: id }); navigate({ page: 'calendar' }); };
   const weeks = [...new Set(upcoming.slice(0, 40).map((e) => weekStart(e.date).getTime()))].slice(0, 6);
   const tile = 'flex flex-col rounded-2xl bg-panel p-5 text-left ring-1 ring-black/[0.04] transition hover:-translate-y-0.5 hover:shadow-float dark:ring-white/[0.06]';
@@ -230,30 +231,30 @@ export function BatchDetail({ id }: { id: string }) {
   );
 }
 
-/** Pick a faculty member, then the subject they'll teach in this batch, then Add. */
+/** Pick a faculty member, then the subjects they'll teach in this batch, then Add. */
 function AddFacultyToBatch({ batchId, onClose }: { batchId: string; onClose: () => void }) {
-  const { members, batches, updateMember, updateBatch } = useStore();
+  const { members, batches, assignFaculty } = useStore();
+  const subjectsOf = useCourseSubjects();
   const b = batches.find((x) => x.id === batchId)!;
-  const [pick, setPick] = useState(''), [subject, setSubject] = useState(''), [q, setQ] = useState('');
+  const [pick, setPick] = useState(''), [subjects, setSubjects] = useState<string[]>([]), [q, setQ] = useState('');
   const pool = members.filter((m) => !b.facultyIds.includes(m.id) && m.status !== 'suspended' && `${m.name} ${(m.subjects || []).join(' ')}`.toLowerCase().includes(q.toLowerCase()));
   const m = members.find((x) => x.id === pick);
   const add = () => {
-    if (!m || !subject) return;
-    updateMember(m.id, { batchIds: [...new Set([...m.batchIds, batchId])], batchSubjects: { ...m.batchSubjects, [batchId]: subject }, subjects: [...new Set([...(m.subjects ?? []), subject])] });
-    updateBatch(batchId, { facultyIds: [...b.facultyIds, m.id] });
-    toast.success(`${m.name} added for ${subject}`); onClose();
+    if (!m || !subjects.length) return;
+    assignFaculty(m.id, { ...Object.fromEntries(m.batchIds.map((x) => [x, m.batchSubjects?.[x] ?? []])), [batchId]: subjects });
+    toast.success(`${m.name} added for ${subjects.join(', ')}`); onClose();
   };
   return (
     <Dialog wide open onOpenChange={(v) => !v && onClose()} title="Add faculty to this batch" desc={b.name}
-      footer={<><Button onClick={onClose}>Cancel</Button><Button variant="primary" disabled={!m || !subject} onClick={add}><Plus /> Add</Button></>}>
+      footer={<><Button onClick={onClose}>Cancel</Button><Button variant="primary" disabled={!m || !subjects.length} onClick={add}><Plus /> Add</Button></>}>
       <div className="space-y-4 pb-2">
         <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search faculty or subject" aria-label="Search faculty" />
         <ul className="max-h-60 space-y-1 overflow-y-auto">{pool.map((x) => (
-          <li key={x.id}><button type="button" onClick={() => { setPick(x.id); setSubject(x.subjects?.[0] ?? SUBJECTS[0]); }} className={cn('flex w-full items-center gap-3 rounded-xl p-2.5 text-left ring-1 ring-inset transition', pick === x.id ? 'bg-panel ring-2 ring-fg' : 'ring-transparent hover:bg-subtle')}>
+          <li key={x.id}><button type="button" onClick={() => { setPick(x.id); setSubjects(subjectsOf(b.course).filter((s) => x.subjects?.includes(s))); }} className={cn('flex w-full items-center gap-3 rounded-xl p-2.5 text-left ring-1 ring-inset transition', pick === x.id ? 'bg-panel ring-2 ring-fg' : 'ring-transparent hover:bg-subtle')}>
             <Avatar name={x.name} src={x.photo} /><span className="min-w-0 flex-1"><span className="block truncate text-sm font-semibold">{x.name}</span><span className="block truncate text-2xs text-muted">{(x.subjects || []).join(', ') || 'No subjects yet'}</span></span><Badge>{x.role}</Badge>
           </button></li>
         ))}{!pool.length && <li className="p-3 text-center text-xs text-muted">Everyone is already in this batch.</li>}</ul>
-        {m && <Field label={`Subject ${m.name} will teach here`}><Select value={subject} onChange={(e) => setSubject(e.target.value)}>{[...new Set([...(m.subjects ?? []), ...SUBJECTS])].map((x) => <option key={x}>{x}</option>)}</Select></Field>}
+        {m && <Field label={`Subjects ${m.name} will teach in this batch`}><div className="flex flex-wrap gap-1.5">{subjectsOf(b.course).map((x) => { const on = subjects.includes(x); return <button key={x} type="button" onClick={() => setSubjects(on ? subjects.filter((y) => y !== x) : [...subjects, x])} className={cn('rounded-full px-3 py-1.5 text-xs font-semibold ring-1 ring-inset transition-colors', on ? 'bg-fg text-bg ring-fg' : 'text-muted ring-border-strong hover:text-fg')}>{x}</button>; })}</div></Field>}
       </div>
     </Dialog>
   );

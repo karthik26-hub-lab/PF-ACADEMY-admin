@@ -22,6 +22,7 @@ import { Students } from './pages/Students';
 import { StudentDetail } from './pages/StudentDetail';
 import { StudentReport } from './pages/StudentReport';
 import { Announcements } from './pages/Announcements';
+import { CourseExplorer, Courses, Materials } from './pages/Courses';
 import { BatchDetail, Batches } from './pages/Batches';
 import { Faculty } from './pages/Faculty';
 import { Calendar } from './pages/Calendar';
@@ -64,6 +65,9 @@ function App() {
       case 'academics': return <AcademicsHub />;
       case 'learning': return <LearningHub />;
       case 'announcements': return <Announcements />;
+      case 'courses': return <Courses />;
+      case 'course': return <CourseExplorer key={route.id} id={route.id} />;
+      case 'materials': return <Materials />;
       case 'assessments': return <AssessmentsHub />;
       case 'reports': return <ReportsHub />;
       case 'settings': return <Settings tab={route.tab} />;

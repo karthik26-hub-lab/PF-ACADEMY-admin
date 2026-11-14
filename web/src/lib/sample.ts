@@ -1,5 +1,6 @@
 // Sample academy used for the preview. Every name and figure is made up.
 // The app labels it "Sample data", and Settings → Data clears it.
+import { sampleCourses } from './courses';
 import type { Batch, CalendarEvent, Course, RecordedDay, Data, Exam, ExamKind, Gender, JoinCode, Member, Student, StudentActivity, StudentStatus } from './store';
 
 function rng(seed: number) {
@@ -54,6 +55,8 @@ export function makeSample(): Data {
       status: i >= ACTIVE ? 'archived' : 'active', startDate: iso(day(-220 + i * 6)), schedule,
     };
   });
+
+  faculty.forEach((f) => { f.batchSubjects = Object.fromEntries(f.batchIds.map((id) => [id, (f.subjects ?? []).slice(0, 1)])); });
 
   const students: Student[] = [];
   const PHONES = ['Redmi Note 12', 'Samsung Galaxy M34', 'iPhone 13', 'OnePlus Nord CE 3', 'Vivo T2', 'Realme 11', 'Pixel 7a'];
@@ -220,11 +223,7 @@ export function makeSample(): Data {
       dob: `${2003 + (i % 4)}-0${1 + i}-1${i}`, parentName: `${PARENT[i]} ${name.split(' ')[1]}`, parentPhone: `+91 9${7000000 + i * 911}45`, at: now - ago,
     })),
     exams, events, recorded, codes,
-    courses: [
-      { id: 'c1', name: 'CA Inter', active: true, subjects: 12, materials: 412 },
-      { id: 'c2', name: 'CA Foundation', active: true, subjects: 4, materials: 268 },
-      { id: 'c3', name: 'CA Final', active: true, subjects: 8, materials: 305 },
-    ],
+    ...sampleCourses(now, batches),
     revenue: { ebooks: 2340000, tests: 410000, questionBanks: 345000, monthly: [142, 158, 171, 166, 188, 203, 214, 236, 229, 258, 284, 311].map((v) => v * 1000) },
     feed: {
       uploads: [

@@ -172,8 +172,13 @@ export const Toggle = ({ label, on, set }: { label: string; on: boolean; set: (v
 );
 
 /** Who a product or bundle is for: selected courses, selected batches (all pre-selected, with filters), or everyone. */
-export function Audience({ label, allLabel, who, ids, onChange }: { label: string; allLabel: string; who: MyProduct['who']; ids: string[]; onChange: (who: MyProduct['who'], ids: string[]) => void }) {
+type Who = MyProduct['who'] | 'students';
+/** Pass `students` to also offer picking individual students (used by announcements). */
+export function Audience<W extends Who>({ label, allLabel, who, ids, onChange, students }: { label: string; allLabel: string; who: W; ids: string[]; onChange: (who: W, ids: string[]) => void; students?: boolean }) {
   const active = useStore((s) => s.batches).filter((b) => b.status === 'active');
+  const everyone = useStore((s) => s.students);
+  const [sq, setSq] = useState('');
+  const found = sq.trim().length < 2 ? [] : everyone.filter((s) => !ids.includes(s.id) && `${s.name} ${s.studentId}`.toLowerCase().includes(sq.toLowerCase())).slice(0, 8);
   const [bc, setBc] = useState<CourseFilter>('all'), [bq, setBq] = useState('');
   const shown = active.filter((b) => (bc === 'all' || b.course === bc) && b.name.toLowerCase().includes(bq.toLowerCase()));
   const chip = (id: string, text: string) => {
@@ -181,7 +186,7 @@ export function Audience({ label, allLabel, who, ids, onChange }: { label: strin
     return <button key={id} type="button" onClick={() => onChange(who, on ? ids.filter((x) => x !== id) : [...ids, id])} className={cn('rounded-full px-3 py-1.5 text-xs font-semibold ring-1 ring-inset', on ? 'bg-fg text-bg ring-fg' : 'text-muted ring-border-strong')}>{text}</button>;
   };
   return <>
-    <Field label={label} className="sm:col-span-2"><Segmented value={who} onChange={(v) => onChange(v, v === 'batches' ? active.map((b) => b.id) : [])} options={[{ value: 'courses', label: 'Selected courses' }, { value: 'batches', label: 'Selected batches' }, { value: 'all', label: allLabel }]} /></Field>
+    <Field label={label} className="sm:col-span-2"><Segmented value={who as Who} onChange={(v) => onChange(v as W, v === 'batches' ? active.map((b) => b.id) : [])} options={[{ value: 'courses', label: 'Selected courses' }, { value: 'batches', label: 'Selected batches' }, ...(students ? [{ value: 'students' as const, label: 'Specific students' }] : []), { value: 'all', label: allLabel }]} /></Field>
     {who === 'courses' && <div className="flex flex-wrap gap-1.5 sm:col-span-2">{COURSES.map((x) => chip(x, x))}</div>}
     {who === 'batches' && <div className="space-y-2 sm:col-span-2">
       <div className="flex flex-wrap items-center gap-2">
@@ -192,6 +197,15 @@ export function Audience({ label, allLabel, who, ids, onChange }: { label: strin
         <span className="ml-auto text-2xs text-muted">{ids.length} of {active.length} batches</span>
       </div>
       <div className="flex max-h-44 flex-wrap gap-1.5 overflow-y-auto">{shown.map((b) => chip(b.id, b.name))}</div>
+    </div>}
+    {who === 'students' && <div className="space-y-2 sm:col-span-2">
+      <div className="relative"><Input value={sq} onChange={(e) => setSq(e.target.value)} placeholder="Search a student by name or student ID" aria-label="Search students" />
+        {found.length > 0 && <ul className="absolute inset-x-0 top-full z-10 mt-1 max-h-60 overflow-y-auto rounded-xl bg-panel p-1 shadow-float ring-1 ring-border">{found.map((s) => (
+          <li key={s.id}><button type="button" onClick={() => { onChange(who, [...ids, s.id]); setSq(''); }} className="flex w-full items-center justify-between gap-2 rounded-lg px-2.5 py-2 text-left text-sm hover:bg-subtle"><span className="truncate">{s.name}</span><span className="font-mono text-2xs text-faint">{s.studentId}</span></button></li>
+        ))}</ul>}
+      </div>
+      <div className="flex flex-wrap gap-1.5">{ids.map((id) => { const s = everyone.find((x) => x.id === id); return s ? <span key={id} className="flex items-center gap-1 rounded-full bg-fg py-1 pl-3 pr-1 text-xs font-semibold text-bg">{s.name}<button type="button" aria-label={`Remove ${s.name}`} onClick={() => onChange(who, ids.filter((x) => x !== id))} className="grid size-5 place-items-center rounded-full hover:bg-bg/20">×</button></span> : null; })}
+        {!ids.length && <span className="text-2xs text-muted">No students picked yet.</span>}</div>
     </div>}
   </>;
 }

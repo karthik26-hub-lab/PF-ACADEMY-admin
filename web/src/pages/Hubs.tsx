@@ -71,13 +71,13 @@ export function AcademicsHub() {
 }
 
 export function LearningHub() {
-  const { courses, announcements } = useStore();
-  const materials = courses.reduce((a, c) => a + c.materials, 0);
+  const { courses, announcements, materials: all } = useStore();
+  const live = all.filter((m) => m.status !== 'archived'), count = (id: string) => live.filter((m) => m.courseId === id).length, materials = live.length;
   return (
     <Hub crumb="Learning" title="Learning" desc="Courses, study materials and announcements for your students." tiles={[
-      { title: 'Courses', desc: 'Create courses, subjects and chapters', icon: GraduationCap, phase: 2, metric: courses.length, sub: courses.map((c) => c.name).join(' · ') || 'No courses yet',
-        visual: courses.length ? <div className="flex"><Donut size={84} thickness={12} center={<span className="text-sm">{materials}</span>} segments={courses.map((c, i) => ({ label: c.name, value: c.materials, tone: (['ink', 'pop', 'hatch'] as const)[i % 3] }))} /></div> : null },
-      { title: 'Study materials', desc: 'Upload and organise resources, Drive-style', icon: FolderOpen, phase: 2, metric: materials, sub: 'PDFs, videos, notes and links' },
+      { title: 'Courses', desc: 'Create courses, subjects and chapters', icon: GraduationCap, to: { page: 'courses' }, metric: courses.length, sub: courses.map((c) => c.name).join(' · ') || 'No courses yet',
+        visual: courses.length ? <div className="flex"><Donut size={84} thickness={12} center={<span className="text-sm">{materials}</span>} segments={courses.map((c, i) => ({ label: c.name, value: count(c.id), tone: (['ink', 'pop', 'hatch'] as const)[i % 3] }))} /></div> : null },
+      { title: 'Study materials', desc: 'Upload and organise resources, Drive-style', icon: FolderOpen, to: { page: 'materials' }, metric: materials, sub: 'PDFs, videos, notes and links' },
       { title: 'Announcements', desc: 'Notifications and pop-ups to courses, batches or everyone', icon: Megaphone, to: { page: 'announcements' }, metric: announcements.filter((a) => annStatus(a) === 'published').length, sub: 'published now' },
     ]} />
   );

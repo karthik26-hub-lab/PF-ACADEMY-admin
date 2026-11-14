@@ -21,7 +21,7 @@ export const popupText = (a: Pick<Announcement, 'popup'>) => (a.popup.mode === '
 export function useReach() {
   const { students, batches } = useStore();
   const course = new Map(batches.map((b) => [b.id, b.course as string]));
-  return (a: Pick<Announcement, 'who' | 'whoIds'>) => (a.who === 'all' ? students.length : students.filter((s) => a.who === 'batches' ? a.whoIds.includes(s.batchId) : a.whoIds.includes(course.get(s.batchId) ?? '')).length);
+  return (a: Pick<Announcement, 'who' | 'whoIds'>) => (a.who === 'all' ? students.length : a.who === 'students' ? a.whoIds.length : students.filter((s) => a.who === 'batches' ? a.whoIds.includes(s.batchId) : a.whoIds.includes(course.get(s.batchId) ?? '')).length);
 }
 
 type Draft = Omit<Announcement, 'id' | 'createdAt' | 'reads' | 'state'>;
@@ -86,7 +86,7 @@ export function AnnouncementWizard({ edit, batchId, onClose }: { edit?: Announce
         </div>}
 
         {step === 1 && <div className="grid gap-4 sm:grid-cols-2">
-          <Audience label="Who should receive it?" allLabel="All students" who={f.who} ids={f.whoIds} onChange={(who, whoIds) => set({ who, whoIds })} />
+          <Audience students label="Who should receive it?" allLabel="All students" who={f.who} ids={f.whoIds} onChange={(who, whoIds) => set({ who, whoIds })} />
           <p className="flex items-center gap-1.5 text-xs text-muted sm:col-span-2"><Users className="size-3.5" />Reaches {reach(f).toLocaleString('en-IN')} students</p>
         </div>}
 
@@ -140,7 +140,7 @@ export function AnnouncementWizard({ edit, batchId, onClose }: { edit?: Announce
             </div>
           </div>
           <dl className="space-y-2.5 text-sm">{[
-            ['Title', f.title], ['Category', f.category], ['Audience', `${f.who === 'all' ? 'All students' : `${f.whoIds.length} ${f.who === 'courses' ? 'course' : 'batch'}${f.whoIds.length === 1 ? '' : f.who === 'courses' ? 's' : 'es'}`} · ${reach(f).toLocaleString('en-IN')} students`],
+            ['Title', f.title], ['Category', f.category], ['Audience', `${f.who === 'all' ? 'All students' : `${f.whoIds.length} ${f.who === 'courses' ? 'course' : f.who === 'students' ? 'student' : 'batch'}${f.whoIds.length === 1 ? '' : f.who === 'batches' ? 'es' : 's'}`} · ${reach(f).toLocaleString('en-IN')} students`],
             ['Display', `${DISPLAY[f.display].label}${f.display !== 'notification' ? ` · pop-up ${popupText(f).toLowerCase()}` : ''}`], ['Publish', publishAt ? fmtDateTime(+new Date(publishAt)) : 'Immediately'], ['Expires', expiresAt ? fmtDateTime(+new Date(expiresAt)) : 'Until removed'],
             ['Attachments', [...f.files, ...f.links].join(', ') || '—'],
           ].map(([k, v]) => <div key={k} className="grid grid-cols-[96px_minmax(0,1fr)] gap-2"><dt className="text-muted">{k}</dt><dd className="break-words font-medium">{v}</dd></div>)}</dl>

@@ -6,7 +6,7 @@ export type Route =
   | { page: 'overview' } | { page: 'academics' } | { page: 'learning' } | { page: 'assessments' } | { page: 'reports' }
   | { page: 'batches' } | { page: 'batch'; id: string } | { page: 'students' } | { page: 'student'; id: string } | { page: 'join-requests' }
   | { page: 'student-report'; id: string; section: 'learning' | 'scores' }
-  | { page: 'faculty' } | { page: 'calendar' } | { page: 'announcements' }
+  | { page: 'faculty' } | { page: 'calendar' } | { page: 'announcements' } | { page: 'courses' } | { page: 'course'; id: string } | { page: 'materials' }
   | { page: 'exams' } | { page: 'exam-new' } | { page: 'exam'; id: string } | { page: 'reviews' }
   | { page: 'settings'; tab: string } | { page: 'store'; tab: StoreTab };
 export type StoreTab = 'catalogue' | 'licences' | 'purchases' | 'products' | 'bundles' | 'offers' | 'sales';
@@ -17,12 +17,12 @@ export function parse(hash: string): Route {
   if (h === 'exams-new') return { page: 'exam-new' };
   const rep = h.match(/^report-(.+)-(learning|scores)$/);
   if (rep) return { page: 'student-report', id: rep[1], section: rep[2] as 'learning' | 'scores' };
-  const m = h.match(/^(exam|student|batch)-(.+)$/);
-  if (m) return { page: m[1] as 'exam' | 'student' | 'batch', id: m[2] };
+  const m = h.match(/^(exam|student|batch|course)-(.+)$/);
+  if (m) return { page: m[1] as 'exam' | 'student' | 'batch' | 'course', id: m[2] };
   if (h === 'store' || h.startsWith('store-')) return { page: 'store', tab: STORE_TABS.find((t) => t === h.slice(6)) ?? 'catalogue' };
   if (h.startsWith('academy-')) return { page: 'settings', tab: h.slice(8) || 'general' };
   if (h === 'students-join') return { page: 'join-requests' };
-  if (['academics', 'learning', 'assessments', 'reports', 'batches', 'students', 'faculty', 'calendar', 'exams', 'reviews', 'announcements'].includes(h)) return { page: h } as Route;
+  if (['academics', 'learning', 'assessments', 'reports', 'batches', 'students', 'faculty', 'calendar', 'exams', 'reviews', 'announcements', 'courses', 'materials'].includes(h)) return { page: h } as Route;
   return { page: 'overview' };
 }
 
@@ -33,6 +33,7 @@ export function href(r: Route): string {
     case 'student': return `#student-${r.id}`;
     case 'student-report': return `#report-${r.id}-${r.section}`;
     case 'batch': return `#batch-${r.id}`;
+    case 'course': return `#course-${r.id}`;
     case 'join-requests': return '#students-join';
     case 'settings': return `#academy-${r.tab}`;
     case 'store': return r.tab === 'catalogue' ? '#store' : `#store-${r.tab}`;
@@ -45,7 +46,7 @@ export function sectionOf(r: Route): Section | null {
   switch (r.page) {
     case 'overview': return 'dashboard';
     case 'academics': case 'batches': case 'batch': case 'students': case 'student': case 'join-requests': case 'faculty': case 'calendar': return 'academics';
-    case 'learning': case 'announcements': return 'learning';
+    case 'learning': case 'announcements': case 'courses': case 'course': case 'materials': return 'learning';
     case 'assessments': case 'exams': case 'exam-new': case 'exam': case 'reviews': return 'assessments';
     case 'reports': case 'student-report': return 'reports';
     case 'store': return 'store';

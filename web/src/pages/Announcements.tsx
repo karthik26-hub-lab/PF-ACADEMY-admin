@@ -23,7 +23,9 @@ const inTab = (st: AnnStatus, t: Tab) => t === 'all' ? st !== 'archived' : t ===
 /** "All students", "CA Inter", "CA Foundation · Jan 2027 · A +1"… */
 export function useAudienceText() {
   const batches = useStore((s) => s.batches);
+  const students = useStore((s) => s.students);
   return (a: Announcement) => a.who === 'all' ? 'All students' : a.who === 'courses' ? a.whoIds.join(', ')
+    : a.who === 'students' ? `${students.find((s) => s.id === a.whoIds[0])?.name ?? 'Student'}${a.whoIds.length > 1 ? ` +${a.whoIds.length - 1}` : ''}`
     : `${batches.find((b) => b.id === a.whoIds[0])?.name ?? 'Batch'}${a.whoIds.length > 1 ? ` +${a.whoIds.length - 1}` : ''}`;
 }
 
@@ -46,13 +48,14 @@ export function AnnouncementList({ list, onOpen }: { list: Announcement[]; onOpe
 }
 
 export function Announcements() {
-  const { announcements, batches } = useStore();
+  const { announcements, batches, students } = useStore();
   const [course, setCourse] = useState<CourseFilter>('all'), [tab, setTab] = useState<Tab>('all'), [q, setQ] = useState('');
   const [showFilters, setShowFilters] = useState(false);
   const [fl, setFl] = useState({ category: 'all', batch: 'all', from: '', to: '', display: 'all' });
   const [open, setOpen] = useState<Announcement | null>(null), [wizard, setWizard] = useState<Announcement | 'new' | null>(null);
   const courseOf = useMemo(() => new Map(batches.map((b) => [b.id, b.course as string])), [batches]);
-  const reaches = (a: Announcement, c: string) => a.who === 'all' || (a.who === 'courses' ? a.whoIds.includes(c) : a.whoIds.some((id) => courseOf.get(id) === c));
+  const studentBatch = useMemo(() => new Map(students.map((s) => [s.id, s.batchId])), [students]);
+  const reaches = (a: Announcement, c: string) => a.who === 'all' || (a.who === 'courses' ? a.whoIds.includes(c) : a.whoIds.some((id) => courseOf.get(a.who === 'students' ? studentBatch.get(id) ?? '' : id) === c));
   const statuses = announcements.map((a) => annStatus(a));
   const count = (s: AnnStatus) => statuses.filter((x) => x === s).length;
   const shown = announcements.filter((a, i) => {
@@ -113,7 +116,7 @@ export function AnnouncementDetail({ a, onClose, onEdit }: { a: Announcement; on
   const [who, setWho] = useState<'seen' | 'not'>('seen');
   const st = annStatus(a), total = reach(a), seen = Math.min(a.reads, total);
   const course = new Map(batches.map((b) => [b.id, b.course as string]));
-  const pool = students.filter((s) => a.who === 'all' || (a.who === 'batches' ? a.whoIds.includes(s.batchId) : a.whoIds.includes(course.get(s.batchId) ?? '')));
+  const pool = students.filter((s) => a.who === 'all' || (a.who === 'students' ? a.whoIds.includes(s.id) : a.who === 'batches' ? a.whoIds.includes(s.batchId) : a.whoIds.includes(course.get(s.batchId) ?? '')));
   const people = who === 'seen' ? pool.slice(0, seen) : pool.slice(seen);
   const act = (state: Announcement['state'], msg: string) => { setAnnState(a.id, state); toast(msg); onClose(); };
   return (
