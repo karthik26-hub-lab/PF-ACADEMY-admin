@@ -52,7 +52,6 @@ export function makeSample(): Data {
     return {
       id: `b${i}`, name, course, facultyId: fIds[0], facultyIds: fIds, createdAt: now - (240 - i * 6) * 86400e3,
       status: i >= ACTIVE ? 'archived' : 'active', startDate: iso(day(-220 + i * 6)), schedule,
-      announcements: i < 6 ? [{ id: `a${i}`, text: i % 2 ? 'Mock test on Saturday. Bring your calculator.' : 'Revision class moved to 10 am this week.', at: now - (i + 1) * 3600e3 * 7 }] : [],
     };
   });
 
@@ -193,6 +192,26 @@ export function makeSample(): Data {
     sample: true,
     academy: { name: 'Northstar Academy', city: 'Chennai', email: 'office@northstar.example', phone: '+91 44 0000 0000', code: 'NSA-48QWE', gstin: '33AAACN0000X1Z5', address: '12 Sample Street, T. Nagar, Chennai 600017' },
     me: { name: 'Lakshmi R', email: 'admin@northstar.example' },
+    // Announcements in every status, so each tab and filter has something to show.
+    announcements: ([
+      ['CA Inter – Exam prediction 2027', 'Examination', 'Our faculty’s predicted questions for the January 2027 attempt are now in the app.', 'courses', ['CA Inter'], 'both', -3, 20, 'live', 812],
+      ['New GST revision notes uploaded', 'Academic', 'Supply under GST revision sheets are in Study materials.', 'batches', ['b13', 'b14'], 'notification', 2, 30, 'live', 0],
+      ['Mock test on Saturday', 'Examination', 'Bring your calculator. Reporting time 8:45 am.', 'batches', ['b0'], 'popup', -1, 4, 'live', 61],
+      ['Diwali holiday', 'General', 'The academy is closed from 30 Oct to 2 Nov.', 'all', [], 'both', -20, -8, 'live', 2104],
+      ['Last date to submit Audit assignment', 'Deadlines', 'Submit through the app before 6 pm.', 'courses', ['CA Inter'], 'notification', -2, 3, 'live', 640],
+      ['Festive offer on test series', 'Offers', '20% off all test series this week with code DIWALI20.', 'all', [], 'popup', -12, -5, 'live', 1890],
+      ['Revision class moved to 10 am', 'Academic', 'This week only, revision starts at 10 am.', 'batches', ['b1'], 'notification', -6, 1, 'live', 52],
+      ['CA Final mock exam series', 'Examination', 'Four full mocks from December. Timetable attached.', 'courses', ['CA Final'], 'both', 5, 40, 'live', 0],
+      ['Parent–teacher meeting', 'General', 'Saturday 23 Nov, 11 am, in the main hall.', 'courses', ['CA Foundation'], 'notification', 0, 0, 'draft', 0],
+      ['Holiday list for 2027', 'General', '', 'all', [], 'notification', 0, 0, 'draft', 0],
+      ['Old timetable (replaced)', 'Academic', 'Superseded by the new timetable.', 'batches', ['b2'], 'notification', -30, 10, 'withdrawn', 44],
+      ['Orientation day photos', 'General', 'Thank you for coming to orientation!', 'all', [], 'notification', -60, -40, 'archived', 1650],
+    ] as const).map(([title, category, description, who, whoIds, display, from, to, state, reads], i) => ({
+      id: `an${i}`, title, category, description, files: i === 7 ? ['CA Final mock timetable.pdf'] : i === 9 ? ['Holidays 2027.pdf'] : [], links: [],
+      who, whoIds: [...whoIds], display, popup: { mode: i === 2 ? 'every' : 'once', times: 3 },
+      publishAt: from === 0 && to === 0 ? undefined : local(day(from, 9)), expiresAt: to === 0 ? undefined : local(day(to, 18)),
+      state, createdAt: now - (Math.abs(from) + 1) * 86400e3, reads,
+    })),
     roles: [{ id: 'r1', name: 'Content coordinator', desc: 'Uploads and organises study material for all batches; no exams or students.', perms: { 'View courses': 'full', 'View study materials': 'full', 'Upload materials': 'full', 'Edit/delete materials': 'full', 'Create announcements': 'limited', Dashboard: 'view' } }],
     batches, members: faculty, students,
     joinRequests: ([['Harsh Agarwal', 'Male', 12 * 60e3], ['Lavanya S', 'Female', 3600e3], ['Farhan Qureshi', 'Male', 26 * 3600e3], ['Keerthana V', 'Female', 30 * 3600e3],

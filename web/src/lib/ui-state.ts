@@ -14,6 +14,8 @@ interface UI {
   theme: Theme; setTheme: (t: Theme) => void;
   examPreset: { status: string; kind: string }; setExamPreset: (p: Partial<{ status: string; kind: string }>) => void;
   studentPreset: { batch: string; phone: boolean }; setStudentPreset: (p: Partial<{ batch: string; phone: boolean }>) => void;
+  /** Batch to show when the calendar opens (from a batch's View schedule). */
+  calendarBatch: string;
   /** A date the calendar should jump to next (set after an import). */
   calendarJump: string | null; setCalendarJump: (d: string | null) => void;
 }
@@ -27,6 +29,7 @@ export const useUI = create<UI>((set) => ({
   mobileNav: false, setMobileNav: (mobileNav) => set({ mobileNav }),
   examPreset: { status: 'all', kind: 'all' }, setExamPreset: (p) => set((s) => ({ examPreset: { ...s.examPreset, ...p } })),
   calendarJump: null, setCalendarJump: (calendarJump) => set({ calendarJump }),
+  calendarBatch: 'all',
   studentPreset: { batch: 'all', phone: false }, setStudentPreset: (p) => set((s) => ({ studentPreset: { ...s.studentPreset, ...p } })),
   theme: (read('pf-theme') as Theme) || 'system',
   setTheme: (theme) => {

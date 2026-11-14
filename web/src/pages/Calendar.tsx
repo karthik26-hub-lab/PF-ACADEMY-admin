@@ -141,7 +141,8 @@ function LiveCalendar({ view, month, setMonth, selected, setSelected, onAdd, onI
   const [mode, setMode] = useState<'month' | 'week'>(() => prefs.get<{ m: 'month' | 'week' }>('pf-calendar-mode', { m: 'month' }).m);
   useEffect(() => { prefs.set('pf-calendar-mode', { m: mode }); }, [mode]);
   const [hidden, setHidden] = useState<Set<EventType>>(new Set());
-  const [batch, setBatch] = useState('all');
+  const [batch, setBatch] = useState(() => useUI.getState().calendarBatch);
+  useEffect(() => { useUI.setState({ calendarBatch: 'all' }); }, []);
   const [dir, setDir] = useState(0);
   const inView = useMemo(() => events.filter((e) => inLiveView(e, view) && matchesBatch(e, batch, batches)), [events, view, batch, batches]);
   const shown = useMemo(() => inView.filter((e) => !hidden.has(e.type)), [inView, hidden]);

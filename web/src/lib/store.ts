@@ -19,11 +19,26 @@ export type RecordedType = 'class' | 'revision' | 'buffer' | 'task';
 
 export interface Academy { name: string; city: string; email: string; phone: string; code: string; gstin: string; address: string }
 export interface Me { name: string; email: string }
-export interface Announcement { id: string; text: string; at: number }
 export interface Batch {
   id: string; name: string; course: Course; facultyId: string; createdAt: number;
-  status: 'active' | 'archived'; startDate: string; schedule: string; facultyIds: string[]; announcements: Announcement[];
+  status: 'active' | 'archived'; startDate: string; endDate?: string; schedule: string; facultyIds: string[];
 }
+// ---------- Announcements (client's Announcements UI brief) ----------
+export type AnnCategory = 'General' | 'Academic' | 'Examination' | 'Deadlines' | 'Offers';
+/** notification: in-app list + push · popup: shown when the app opens, nothing stored · both. */
+export type AnnDisplay = 'notification' | 'popup' | 'both';
+export interface Announcement {
+  id: string; title: string; category: AnnCategory; description: string; files: string[]; links: string[];
+  who: 'all' | 'courses' | 'batches'; whoIds: string[];
+  display: AnnDisplay; popup: { mode: 'once' | 'daily' | 'custom' | 'every'; times: number };
+  /** Empty publishAt = publish immediately; empty expiresAt = until removed. */
+  publishAt?: string; expiresAt?: string;
+  state: 'draft' | 'live' | 'withdrawn' | 'archived'; createdAt: number; reads: number;
+}
+export type AnnStatus = 'draft' | 'scheduled' | 'published' | 'expired' | 'withdrawn' | 'archived';
+/** Drafts stay unpublished; a schedule publishes on its date; the end date moves it to Expired. */
+export const annStatus = (a: Announcement, now = Date.now()): AnnStatus =>
+  a.state !== 'live' ? a.state : a.publishAt && +new Date(a.publishAt) > now ? 'scheduled' : a.expiresAt && +new Date(a.expiresAt) <= now ? 'expired' : 'published';
 /** pending = account made but they haven't signed in yet; active after the first sign-in; suspended by the academy. */
 export type MemberStatus = 'pending' | 'active' | 'suspended';
 /** Work the academy sends to a faculty member (e.g. "Make a question bank"); it shows in their tasks. */
@@ -31,7 +46,7 @@ export interface FacultyTask { id: string; text: string; due?: string; at: numbe
 /** A role the academy made: each feature is off (missing) or on at a level. */
 export type Level = 'full' | 'assigned' | 'limited' | 'view';
 export interface CustomRole { id: string; name: string; desc: string; perms: Record<string, Level> }
-export interface Member { id: string; name: string; email: string; phone?: string; dob?: string; photo?: string; status: MemberStatus; lastLogin?: number; tasks: FacultyTask[]; role: string; batchIds: string[]; subjects?: string[]; invitedAt: number }
+export interface Member { id: string; name: string; email: string; phone?: string; dob?: string; photo?: string; status: MemberStatus; lastLogin?: number; tasks: FacultyTask[]; role: string; batchIds: string[]; subjects?: string[]; /** The subject they teach in each batch. */ batchSubjects?: Record<string, string>; invitedAt: number }
 /** Something the student did, shown on their profile (newest first). */
 export interface StudentActivity { at: number; kind: 'mcq' | 'test' | 'batch' | 'device' | 'login'; text: string }
 export interface Student {
@@ -78,7 +93,7 @@ export interface Data {
   academy: Academy; me: Me;
   batches: Batch[]; members: Member[]; students: Student[]; joinRequests: JoinRequest[]; exams: Exam[];
   events: CalendarEvent[]; recorded: RecordedDay[]; codes: JoinCode[]; courses: CourseInfo[]; revenue: Revenue; feed: Feed;
-  activity: Activity[]; defaults: Defaults; access: Access; roles: CustomRole[];
+  activity: Activity[]; defaults: Defaults; access: Access; roles: CustomRole[]; announcements: Announcement[];
 }
 
 export type NewStudent = StudentDetails & Pick<Student, 'batchId'> & Partial<Pick<Student, 'joinedVia' | 'admissionDate'>>;
@@ -88,10 +103,11 @@ interface State extends Data {
   signIn: (email: string) => void; signOut: () => void;
   saveAcademy: (a: Partial<Academy>, me?: Partial<Me>) => void;
   newCode: () => string;
-  addBatch: (b: Pick<Batch, 'name' | 'course' | 'facultyId'> & Partial<Pick<Batch, 'startDate' | 'schedule'>>) => Batch;
+  addBatch: (b: Pick<Batch, 'name' | 'course' | 'facultyId'> & Partial<Pick<Batch, 'startDate' | 'endDate'>>) => Batch;
   updateBatch: (id: string, b: Partial<Batch>) => void;
   deleteBatch: (id: string) => void;
-  announce: (batchId: string, text: string) => void;
+  saveAnnouncement: (a: Omit<Announcement, 'id' | 'createdAt' | 'reads'>, id?: string) => void;
+  setAnnState: (id: string, state: Announcement['state']) => void;
   addStudent: (s: NewStudent) => { student: Student; password: string } | { error: string };
   addStudents: (rows: NewStudent[]) => { added: number; skipped: number };
   updateStudent: (id: string, s: Partial<Student>) => void;
@@ -149,10 +165,10 @@ export const emptyData = (): Data => ({
   activity: [],
   defaults: { policy: 'clean', late: 'none', flagBelow: 0.7 },
   access: { academyCreatesLogins: true, joinWithCode: true, approveJoins: true, otpReset: false },
-  roles: [],
+  roles: [], announcements: [],
 });
 
-const DATA_KEYS: (keyof Data)[] = ['sample', 'academy', 'me', 'batches', 'members', 'students', 'joinRequests', 'exams', 'events', 'recorded', 'codes', 'courses', 'revenue', 'feed', 'activity', 'defaults', 'access', 'roles'];
+const DATA_KEYS: (keyof Data)[] = ['sample', 'academy', 'me', 'batches', 'members', 'students', 'joinRequests', 'exams', 'events', 'recorded', 'codes', 'courses', 'revenue', 'feed', 'activity', 'defaults', 'access', 'roles', 'announcements'];
 
 export const useStore = create<State>()(
   persist(
@@ -190,14 +206,15 @@ export const useStore = create<State>()(
           return code;
         },
         addBatch: (b) => {
-          const batch: Batch = { startDate: today(), schedule: '', ...b, id: uid(), createdAt: Date.now(), status: 'active', facultyIds: b.facultyId ? [b.facultyId] : [], announcements: [] };
+          const batch: Batch = { startDate: today(), schedule: '', ...b, id: uid(), createdAt: Date.now(), status: 'active', facultyIds: b.facultyId ? [b.facultyId] : [] };
           set((s) => ({ batches: [...s.batches, batch] }));
           log('batch', `Batch “${batch.name}” created`);
           return batch;
         },
         updateBatch: (id, b) => set((s) => ({ batches: s.batches.map((x) => (x.id === id ? { ...x, ...b } : x)) })),
         deleteBatch: (id) => set((s) => ({ batches: s.batches.filter((x) => x.id !== id), students: s.students.filter((x) => x.batchId !== id) })),
-        announce: (batchId, text) => set((s) => ({ batches: s.batches.map((b) => (b.id === batchId ? { ...b, announcements: [{ id: uid(), text, at: Date.now() }, ...b.announcements] } : b)) })),
+        saveAnnouncement: (a, id) => set((s) => ({ announcements: id ? s.announcements.map((x) => (x.id === id ? { ...x, ...a } : x)) : [{ ...a, id: uid(), createdAt: Date.now(), reads: 0 }, ...s.announcements] })),
+        setAnnState: (id, state) => set((s) => ({ announcements: s.announcements.map((x) => (x.id === id ? { ...x, state } : x)) })),
         addStudent: (st) => {
           const student = makeStudent(st);
           if (!student) return { error: `${st.email.trim()} is already used by another student` };
@@ -264,7 +281,7 @@ export const useStore = create<State>()(
       };
     },
     {
-      name: 'pf-academy-v7',
+      name: 'pf-academy-v8',
       storage: createJSONStorage(() => {
         try { localStorage.setItem('__t', '1'); localStorage.removeItem('__t'); return localStorage; }
         catch { const m = new Map<string, string>(); return { getItem: (k) => m.get(k) ?? null, setItem: (k, v) => void m.set(k, v), removeItem: (k) => void m.delete(k) }; }

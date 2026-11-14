@@ -6,7 +6,7 @@ export type Route =
   | { page: 'overview' } | { page: 'academics' } | { page: 'learning' } | { page: 'assessments' } | { page: 'reports' }
   | { page: 'batches' } | { page: 'batch'; id: string } | { page: 'students' } | { page: 'student'; id: string } | { page: 'join-requests' }
   | { page: 'student-report'; id: string; section: 'learning' | 'scores' }
-  | { page: 'faculty' } | { page: 'calendar' }
+  | { page: 'faculty' } | { page: 'calendar' } | { page: 'announcements' }
   | { page: 'exams' } | { page: 'exam-new' } | { page: 'exam'; id: string } | { page: 'reviews' }
   | { page: 'settings'; tab: string } | { page: 'store'; tab: StoreTab };
 export type StoreTab = 'catalogue' | 'licences' | 'purchases' | 'products' | 'bundles' | 'offers' | 'sales';
@@ -22,7 +22,7 @@ export function parse(hash: string): Route {
   if (h === 'store' || h.startsWith('store-')) return { page: 'store', tab: STORE_TABS.find((t) => t === h.slice(6)) ?? 'catalogue' };
   if (h.startsWith('academy-')) return { page: 'settings', tab: h.slice(8) || 'general' };
   if (h === 'students-join') return { page: 'join-requests' };
-  if (['academics', 'learning', 'assessments', 'reports', 'batches', 'students', 'faculty', 'calendar', 'exams', 'reviews'].includes(h)) return { page: h } as Route;
+  if (['academics', 'learning', 'assessments', 'reports', 'batches', 'students', 'faculty', 'calendar', 'exams', 'reviews', 'announcements'].includes(h)) return { page: h } as Route;
   return { page: 'overview' };
 }
 
@@ -45,7 +45,7 @@ export function sectionOf(r: Route): Section | null {
   switch (r.page) {
     case 'overview': return 'dashboard';
     case 'academics': case 'batches': case 'batch': case 'students': case 'student': case 'join-requests': case 'faculty': case 'calendar': return 'academics';
-    case 'learning': return 'learning';
+    case 'learning': case 'announcements': return 'learning';
     case 'assessments': case 'exams': case 'exam-new': case 'exam': case 'reviews': return 'assessments';
     case 'reports': case 'student-report': return 'reports';
     case 'store': return 'store';

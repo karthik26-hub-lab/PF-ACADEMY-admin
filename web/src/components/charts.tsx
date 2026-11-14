@@ -89,7 +89,7 @@ export function Sparkline({ values, className, tone = 'ink' }: { values: number[
 }
 
 /** Small ring gauge for a percentage. */
-export function Ring({ value, size = 44, stroke = 5, tone = 'ink', label }: { value: number; size?: number; stroke?: number; tone?: 'ink' | 'pop'; label?: string }) {
+export function Ring({ value, size = 44, stroke = 5, tone = 'ink', label, bare }: { value: number; size?: number; stroke?: number; tone?: 'ink' | 'pop'; label?: string; bare?: boolean }) {
   const r = (size - stroke) / 2, c = 2 * Math.PI * r, v = Math.max(0, Math.min(100, value));
   return (
     <div className="relative grid shrink-0 place-items-center" style={{ width: size, height: size }} role="img" aria-label={label ?? `${Math.round(v)}%`}>
@@ -98,7 +98,7 @@ export function Ring({ value, size = 44, stroke = 5, tone = 'ink', label }: { va
         <motion.circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke={tone === 'pop' ? 'hsl(var(--pop))' : 'hsl(var(--fg))'} strokeWidth={stroke} strokeLinecap="round"
           strokeDasharray={c} initial={{ strokeDashoffset: c }} animate={{ strokeDashoffset: c - (v / 100) * c }} transition={{ duration: 0.9, ease }} />
       </svg>
-      <span className="tnum absolute text-[10px] font-bold">{Math.round(v)}%</span>
+      {!bare && <span className="tnum absolute text-[10px] font-bold">{Math.round(v)}%</span>}
     </div>
   );
 }

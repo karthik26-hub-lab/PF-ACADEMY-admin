@@ -5,7 +5,7 @@ import { Donut, HatchedBars, Ring, Sparkline } from '../components/charts';
 import { Page } from '../components/layout/Page';
 import { Avatar, Badge } from '../components/ui';
 import { href, type Route } from '../lib/router';
-import { examStatus, useStore } from '../lib/store';
+import { annStatus, examStatus, useStore } from '../lib/store';
 import { cn } from '../lib/utils';
 
 type Tile = { title: string; desc: string; icon: typeof Users; to?: Route; metric?: ReactNode; sub?: ReactNode; visual?: ReactNode; phase?: number };
@@ -71,14 +71,14 @@ export function AcademicsHub() {
 }
 
 export function LearningHub() {
-  const { courses } = useStore();
+  const { courses, announcements } = useStore();
   const materials = courses.reduce((a, c) => a + c.materials, 0);
   return (
     <Hub crumb="Learning" title="Learning" desc="Courses, study materials and announcements for your students." tiles={[
       { title: 'Courses', desc: 'Create courses, subjects and chapters', icon: GraduationCap, phase: 2, metric: courses.length, sub: courses.map((c) => c.name).join(' · ') || 'No courses yet',
         visual: courses.length ? <div className="flex"><Donut size={84} thickness={12} center={<span className="text-sm">{materials}</span>} segments={courses.map((c, i) => ({ label: c.name, value: c.materials, tone: (['ink', 'pop', 'hatch'] as const)[i % 3] }))} /></div> : null },
       { title: 'Study materials', desc: 'Upload and organise resources, Drive-style', icon: FolderOpen, phase: 2, metric: materials, sub: 'PDFs, videos, notes and links' },
-      { title: 'Announcements', desc: 'Learning notifications to batches or students', icon: Megaphone, phase: 2 },
+      { title: 'Announcements', desc: 'Notifications and pop-ups to courses, batches or everyone', icon: Megaphone, to: { page: 'announcements' }, metric: announcements.filter((a) => annStatus(a) === 'published').length, sub: 'published now' },
     ]} />
   );
 }

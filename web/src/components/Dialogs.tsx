@@ -4,7 +4,7 @@ import QRCode from 'qrcode';
 import readXlsxFile from 'read-excel-file';
 import { useEffect, useMemo, useState, type FormEvent } from 'react';
 import { toast } from 'sonner';
-import { COURSES, defaultPassword, useStore, validEmail, type Course, type Gender, type Student, type StudentDetails } from '../lib/store';
+import { COURSES, defaultPassword, useStore, validEmail, type Batch, type Course, type Gender, type Student, type StudentDetails } from '../lib/store';
 import { EventDialog, RecordedDialog } from './CalendarDialogs';
 import { FacultyDialog } from './FacultyDialog';
 import { CalendarImportDialog } from './CalendarImport';
@@ -26,26 +26,30 @@ function BatchDialog() {
   const d = useDialog('batch');
   const { addBatch, updateBatch, batches, members } = useStore();
   const editing = batches.find((b) => b.id === d.arg);
-  const [f, setF] = useState({ name: '', course: 'CA Inter' as Course, facultyId: '', startDate: '', schedule: '' });
+  const blank = { name: '', course: 'CA Inter' as Course, facultyId: '', startDate: '', endDate: '', status: 'active' as Batch['status'] };
+  const [f, setF] = useState(blank);
   useEffect(() => {
-    if (d.open) setF(editing ? { name: editing.name, course: editing.course, facultyId: editing.facultyId, startDate: editing.startDate, schedule: editing.schedule }
-      : { name: '', course: 'CA Inter', facultyId: '', startDate: new Date().toISOString().slice(0, 10), schedule: '' });
+    if (d.open) setF(editing ? { name: editing.name, course: editing.course, facultyId: editing.facultyId, startDate: editing.startDate, endDate: editing.endDate ?? '', status: editing.status }
+      : { ...blank, startDate: new Date().toISOString().slice(0, 10) });
   }, [d.open]); // eslint-disable-line
+  const ok = f.name.trim() && (!f.endDate || f.endDate >= f.startDate);
   const submit = (e: FormEvent) => {
-    e.preventDefault(); if (!f.name.trim()) return;
-    if (editing) updateBatch(editing.id, { ...f, name: f.name.trim(), facultyIds: f.facultyId && !editing.facultyIds.includes(f.facultyId) ? [f.facultyId, ...editing.facultyIds] : editing.facultyIds });
-    else addBatch({ ...f, name: f.name.trim() });
+    e.preventDefault(); if (!ok) return;
+    const data = { ...f, name: f.name.trim(), endDate: f.endDate || undefined };
+    if (editing) updateBatch(editing.id, { ...data, facultyIds: f.facultyId && !editing.facultyIds.includes(f.facultyId) ? [f.facultyId, ...editing.facultyIds] : editing.facultyIds });
+    else addBatch(data);
     toast.success(editing ? 'Batch updated' : 'Batch created'); d.close();
   };
   return (
     <Dialog open={d.open} onOpenChange={d.onOpenChange} title={editing ? 'Edit batch' : 'New batch'} desc="Students belong to a batch. Courses, faculty and exams are given to batches."
-      footer={<><Button onClick={d.close}>Cancel</Button><Button variant="primary" type="submit" form="batch-form" disabled={!f.name.trim()}>{editing ? 'Save' : 'Create batch'}</Button></>}>
+      footer={<><Button onClick={d.close}>Cancel</Button><Button variant="primary" type="submit" form="batch-form" disabled={!ok}>{editing ? 'Save' : 'Create batch'}</Button></>}>
       <form id="batch-form" onSubmit={submit} className="grid gap-4 sm:grid-cols-2">
         <Field label="Name" htmlFor="nb-name" className="sm:col-span-2"><Input id="nb-name" autoFocus value={f.name} onChange={(e) => setF({ ...f, name: e.target.value })} placeholder="CA Inter · May 2027 · Batch A" /></Field>
         <Field label="Course" htmlFor="nb-course"><Select id="nb-course" value={f.course} onChange={(e) => setF({ ...f, course: e.target.value as Course })}>{COURSES.map((c) => <option key={c}>{c}</option>)}</Select></Field>
-        <Field label="Starts" htmlFor="nb-start"><Input id="nb-start" type="date" value={f.startDate} onChange={(e) => setF({ ...f, startDate: e.target.value })} /></Field>
-        <Field label="Class schedule" htmlFor="nb-sch" optional><Input id="nb-sch" value={f.schedule} onChange={(e) => setF({ ...f, schedule: e.target.value })} placeholder="Mon, Wed, Fri · 9:00–12:00" /></Field>
         <Field label="Lead faculty" htmlFor="nb-fac" optional><Select id="nb-fac" value={f.facultyId} onChange={(e) => setF({ ...f, facultyId: e.target.value })}><option value="">Not assigned</option>{members.map((m) => <option key={m.id} value={m.id}>{m.name}</option>)}</Select></Field>
+        <Field label="Starts" htmlFor="nb-start"><Input id="nb-start" type="date" value={f.startDate} onChange={(e) => setF({ ...f, startDate: e.target.value })} /></Field>
+        <Field label="End date" htmlFor="nb-end" optional hint={f.endDate && f.endDate < f.startDate ? <span className="text-bad">Ends before it starts.</span> : undefined}><Input id="nb-end" type="date" min={f.startDate} value={f.endDate} onChange={(e) => setF({ ...f, endDate: e.target.value })} /></Field>
+        {editing && <Field label="Status" className="sm:col-span-2" hint={f.status === 'archived' ? 'Archived batches move to the Archived tab. Their students and records stay.' : undefined}><Segmented value={f.status} onChange={(v) => setF({ ...f, status: v })} options={[{ value: 'active', label: 'Active' }, { value: 'archived', label: 'Archived' }]} /></Field>}
       </form>
     </Dialog>
   );

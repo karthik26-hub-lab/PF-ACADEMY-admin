@@ -172,7 +172,7 @@ export function StudentTable({ students, hideBatch }: { students: Student[]; hid
                   {show('status') && <Td><Badge tone={STATUS[s.status].tone}>{STATUS[s.status].label}</Badge></Td>}
                   {show('joined') && <Td className="whitespace-nowrap text-xs">{joinDate(s.admissionDate)}</Td>}
                   {show('learning') && <Td><span className="flex items-center gap-2"><span className="h-1.5 w-20 overflow-hidden rounded-full hatch"><span className="block h-full rounded-full bg-fg" style={{ width: `${s.progress}%` }} /></span><span className="tnum text-2xs text-muted">{s.progress}%</span></span></Td>}
-                  {show('avg') && <Td className="tnum text-right font-semibold">{s.avgScore == null ? '—' : `${s.avgScore}%`}</Td>}
+                  {show('avg') && <Td className="tnum text-right font-semibold">{s.avgScore == null ? '—' : <span className="inline-flex items-center gap-2"><Ring value={s.avgScore} size={22} stroke={4} bare label={`Average ${s.avgScore}%`} />{s.avgScore}%</span>}</Td>}
                   {show('trend') && <Td className="hidden w-32 xl:table-cell">{s.trend.length > 1 ? <Sparkline values={s.trend} className="h-7" /> : <span className="text-2xs text-faint">—</span>}</Td>}
                 </tr>
               </RowMenu>

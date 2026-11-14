@@ -21,6 +21,7 @@ import { Reviews } from './pages/Reviews';
 import { Students } from './pages/Students';
 import { StudentDetail } from './pages/StudentDetail';
 import { StudentReport } from './pages/StudentReport';
+import { Announcements } from './pages/Announcements';
 import { BatchDetail, Batches } from './pages/Batches';
 import { Faculty } from './pages/Faculty';
 import { Calendar } from './pages/Calendar';
@@ -62,6 +63,7 @@ function App() {
       case 'calendar': return <Calendar />;
       case 'academics': return <AcademicsHub />;
       case 'learning': return <LearningHub />;
+      case 'announcements': return <Announcements />;
       case 'assessments': return <AssessmentsHub />;
       case 'reports': return <ReportsHub />;
       case 'settings': return <Settings tab={route.tab} />;
