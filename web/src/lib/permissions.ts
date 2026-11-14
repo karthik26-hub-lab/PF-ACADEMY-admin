@@ -57,6 +57,14 @@ export const MODULES: { name: string; note?: string; rows: Row[] }[] = [
 export const levelOf = (text: string): Level | 'none' =>
   /^no\b/i.test(text) ? 'none' : /^(full|all|manage|edit|owner)/i.test(text) ? 'full' : /^view\b/i.test(text) ? 'view' : /^limited/i.test(text) ? 'limited' : 'assigned';
 
-/** A starting point for a new role: Faculty's levels. */
-export const facultyPerms = (): CustomRole['perms'] =>
-  Object.fromEntries(MODULES.flatMap((m) => m.rows).flatMap(([f, fac]) => { const l = levelOf(fac); return l === 'none' ? [] : [[f, l]]; }));
+const RANK: Record<Level, number> = { view: 1, limited: 2, assigned: 3, full: 4 };
+/** Combines built-in roles (e.g. Faculty + Reviewer): each feature gets the higher of their levels. */
+export const combinePerms = (names: string[]): CustomRole['perms'] => {
+  const out: CustomRole['perms'] = {};
+  for (const [f, ...cells] of MODULES.flatMap((m) => m.rows))
+    for (const n of names) {
+      const l = levelOf(cells[BUILT_IN.findIndex((r) => r.name === n)] ?? 'No');
+      if (l !== 'none' && (!out[f] || RANK[l] > RANK[out[f]])) out[f] = l;
+    }
+  return out;
+};

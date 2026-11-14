@@ -7,13 +7,14 @@ import { BUILT_IN } from '../lib/permissions';
 import { facultyPassword, useStore, validEmail, type Member } from '../lib/store';
 import { photoToDataUrl } from '../lib/utils';
 import { Avatar, Badge, Button, Dialog, Field, Input, Select } from './ui';
+import { RoleDialog } from './RoleDialog';
 
 type Form = { name: string; email: string; phone: string; dob: string; role: string; photo?: string };
 
 export function FacultyDialog({ open, member, onClose }: { open: boolean; member?: Member | null; onClose: () => void }) {
   const { members, roles, invite, updateMember, academy } = useStore();
   const [f, setF] = useState<Form>({ name: '', email: '', phone: '', dob: '', role: 'Faculty' });
-  const [made, setMade] = useState<Member | null>(null);
+  const [made, setMade] = useState<Member | null>(null), [newRole, setNewRole] = useState(false);
   useEffect(() => {
     if (!open) return;
     setMade(null);
@@ -67,7 +68,12 @@ export function FacultyDialog({ open, member, onClose }: { open: boolean; member
           <Field label="Phone number" htmlFor="fd-ph" hint={f.phone && digits.length < 10 ? <span className="text-bad">Enter the full mobile number.</span> : undefined}><Input id="fd-ph" inputMode="tel" value={f.phone} onChange={(e) => set({ phone: e.target.value })} placeholder="+91" /></Field>
           <Field label="Email" htmlFor="fd-mail" className="sm:col-span-2" hint={taken ? <span className="text-bad">Someone already uses this email.</span> : 'This is also their login ID.'}><Input id="fd-mail" type="email" value={f.email} onChange={(e) => set({ email: e.target.value })} /></Field>
           <Field label="Date of birth" htmlFor="fd-dob" optional><Input id="fd-dob" type="date" value={f.dob} onChange={(e) => set({ dob: e.target.value })} /></Field>
-          <Field label="Access" htmlFor="fd-role" hint={allRoles.find((r) => r.name === f.role)?.desc}><Select id="fd-role" value={f.role} onChange={(e) => set({ role: e.target.value })}>{allRoles.map((r) => <option key={r.name}>{r.name}</option>)}</Select></Field>
+          <Field label="Access" htmlFor="fd-role" hint={<>{allRoles.find((r) => r.name === f.role)?.desc} <button type="button" onClick={() => setNewRole(true)} className="font-semibold text-fg underline-offset-2 hover:underline">Create a custom role</button></>}>
+            <Select id="fd-role" value={f.role} onChange={(e) => (e.target.value === '__new' ? setNewRole(true) : set({ role: e.target.value }))}>
+              <optgroup label="Built-in roles">{BUILT_IN.map((r) => <option key={r.name}>{r.name}</option>)}</optgroup>
+              {roles.length > 0 && <optgroup label="Custom roles">{roles.map((r) => <option key={r.id}>{r.name}</option>)}</optgroup>}
+              <option value="__new">+ Create a custom role…</option>
+            </Select></Field>
           {!member && (
             <div className="rounded-xl bg-subtle p-3 text-xs sm:col-span-2">
               <span className="font-semibold">Created automatically · </span>
@@ -77,6 +83,7 @@ export function FacultyDialog({ open, member, onClose }: { open: boolean; member
           )}
         </div>
       </div>
+      {newRole && <RoleDialog role={null} onClose={() => setNewRole(false)} onSaved={(role) => set({ role })} />}
     </Dialog>
   );
 }

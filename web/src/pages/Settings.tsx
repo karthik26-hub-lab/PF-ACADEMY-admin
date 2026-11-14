@@ -6,7 +6,8 @@ import { Page } from '../components/layout/Page';
 import { SETTINGS_TABS } from '../components/layout/TopNav';
 import { Ring } from '../components/charts';
 import { Avatar, Badge, Button, Card, CardHeader, Dialog, Field, Input, RadioCard, Segmented, Select, Switch, Table, Td, Th } from '../components/ui';
-import { BUILT_IN, LEVELS, MODULES, facultyPerms, levelOf } from '../lib/permissions';
+import { BUILT_IN, LEVELS, MODULES, levelOf } from '../lib/permissions';
+import { RoleDialog } from '../components/RoleDialog';
 import { href } from '../lib/router';
 import { LATE, POLICY, useStore, type Access, type CustomRole, type Late, type Level, type Policy } from '../lib/store';
 import { useUI } from '../lib/ui-state';
@@ -176,35 +177,6 @@ function Roles() {
   );
 }
 
-/** Create or edit a custom role: every feature has a switch; when on, pick its level. */
-function RoleDialog({ role, onClose }: { role: CustomRole | null; onClose: () => void }) {
-  const { saveRole } = useStore();
-  const [name, setName] = useState(role?.name ?? ''), [desc, setDesc] = useState(role?.desc ?? '');
-  const [perms, setPerms] = useState<CustomRole['perms']>(role?.perms ?? facultyPerms());
-  const [mod, setMod] = useState(MODULES[0].name);
-  const taken = BUILT_IN.some((r) => r.name.toLowerCase() === name.trim().toLowerCase());
-  const set = (f: string, l: Level | null) => setPerms((p) => { const n = { ...p }; if (l) n[f] = l; else delete n[f]; return n; });
-  const rows = MODULES.find((x) => x.name === mod)!.rows;
-  return (
-    <Dialog wide open onOpenChange={(v) => !v && onClose()} title={role ? `Edit role · ${role.name}` : 'New role'} desc="Switch on what this role can use, and how much. Starts from Faculty's permissions."
-      footer={<><Button onClick={onClose}>Cancel</Button><Button variant="primary" disabled={!name.trim() || taken} onClick={() => { saveRole({ name: name.trim(), desc: desc.trim(), perms }, role?.id); toast.success(role ? 'Role saved' : 'Role created'); onClose(); }}>{role ? 'Save role' : 'Create role'}</Button></>}>
-      <div className="space-y-4 pb-2">
-        <div className="grid gap-4 sm:grid-cols-2">
-          <Field label="Role name" hint={taken ? <span className="text-bad">That's a built-in role name.</span> : undefined}><Input autoFocus value={name} onChange={(e) => setName(e.target.value)} placeholder="Content coordinator" /></Field>
-          <Field label="What they do" optional><Input value={desc} onChange={(e) => setDesc(e.target.value)} placeholder="Uploads study material for all batches" /></Field>
-        </div>
-        <Segmented value={mod} onChange={setMod} options={MODULES.map((x) => ({ value: x.name, label: <>{x.name}<span className="tnum text-faint">{x.rows.filter(([f]) => perms[f]).length}</span></> }))} />
-        <ul className="divide-y divide-border rounded-xl ring-1 ring-inset ring-border">{rows.map(([f]) => (
-          <li key={f} className="flex items-center gap-3 px-3 py-2">
-            <Switch label={f} checked={!!perms[f]} onCheckedChange={(v) => set(f, v ? 'view' : null)} />
-            <span className={cn('flex-1 text-sm', !perms[f] && 'text-muted')}>{f}</span>
-            {perms[f] && <Select aria-label={`${f} level`} value={perms[f]} onChange={(e) => set(f, e.target.value as Level)} className="w-36">{(['full', 'assigned', 'limited', 'view'] as const).map((l) => <option key={l} value={l}>{LEVELS[l].label}</option>)}</Select>}
-          </li>
-        ))}</ul>
-      </div>
-    </Dialog>
-  );
-}
 
 function Notifications() {
   const items = [['New registrations', true, false], ['Join requests waiting', true, true], ['Test submissions', false, true], ['Scripts flagged for review', true, true], ['Fee payments', true, false], ['Weekly academy summary', true, false]] as const;
