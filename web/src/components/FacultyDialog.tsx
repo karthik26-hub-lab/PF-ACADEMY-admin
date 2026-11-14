@@ -1,14 +1,15 @@
 // Add faculty and Edit details share one form: Name, Email, Phone, DOB (optional), Access and an optional photo.
 // Adding then asks for batches, then the subjects in each batch, before the account is created.
-import { Copy, ImagePlus, X } from 'lucide-react';
+import { ImagePlus, X } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import { BUILT_IN } from '../lib/permissions';
 import { facultyPassword, useStore, validEmail, type Member } from '../lib/store';
 import { photoToDataUrl } from '../lib/utils';
-import { Avatar, Badge, Button, Dialog, Field, Input, Select } from './ui';
+import { Button, Dialog, Field, Input, Select } from './ui';
 import { BatchSubjectPicker, subjectsDone, type BatchSubjects } from './BatchSubjectPicker';
 import { RoleDialog } from './RoleDialog';
+import { celebrate } from './Celebrate';
 
 type Form = { name: string; email: string; phone: string; dob: string; role: string; photo?: string };
 
@@ -16,10 +17,10 @@ export function FacultyDialog({ open, member, onClose }: { open: boolean; member
   const { members, roles, invite, updateMember, assignFaculty, academy } = useStore();
   const [step, setStep] = useState<'details' | 'batches' | 'subjects'>('details'), [bs, setBs] = useState<BatchSubjects>({});
   const [f, setF] = useState<Form>({ name: '', email: '', phone: '', dob: '', role: 'Faculty' });
-  const [made, setMade] = useState<Member | null>(null), [newRole, setNewRole] = useState(false);
+  const [newRole, setNewRole] = useState(false);
   useEffect(() => {
     if (!open) return;
-    setMade(null); setStep('details'); setBs({});
+    setStep('details'); setBs({});
     setF(member ? { name: member.name, email: member.email, phone: member.phone ?? '', dob: member.dob ?? '', role: member.role, photo: member.photo } : { name: '', email: '', phone: '', dob: '', role: 'Faculty' });
   }, [open, member]);
   const set = (p: Partial<Form>) => setF((x) => ({ ...x, ...p }));
@@ -34,28 +35,15 @@ export function FacultyDialog({ open, member, onClose }: { open: boolean; member
     if (!ok) return;
     const data = { name: f.name.trim(), email: f.email.trim(), phone: f.phone.trim(), dob: f.dob || undefined, role: f.role, photo: f.photo };
     if (member) { updateMember(member.id, data); toast.success('Details saved'); onClose(); }
-    else { const m = invite({ ...data, subjects: [], batchIds: [] }); if (Object.keys(pick).length) assignFaculty(m.id, pick); setMade({ ...m, batchIds: Object.keys(pick) }); }
+    else {
+      const m = invite({ ...data, subjects: [], batchIds: [] }); if (Object.keys(pick).length) assignFaculty(m.id, pick);
+      const pw = facultyPassword(m.name, m.phone ?? ''), n = Object.keys(pick).length;
+      onClose();
+      celebrate(`${m.name} added as faculty`, { description: `Login ID ${m.email} · Password ${pw}${n ? ` · ${n} ${n === 1 ? 'batch' : 'batches'}` : ''}. Shows “Invitation pending” until their first sign-in.`, copy: `${academy.name || 'Parallax Flow'} portal
+Login ID: ${m.email}
+Password: ${pw}` });
+    }
   };
-
-  if (made) {
-    const pw = facultyPassword(made.name, made.phone ?? '');
-    const share = `${academy.name || 'Parallax Flow'} portal\nLogin ID: ${made.email}\nPassword: ${pw}`;
-    return (
-      <Dialog open={open} onOpenChange={(v) => !v && onClose()} title="Faculty account created" desc="Shows “Invitation pending” until their first sign-in."
-        footer={<><Button onClick={() => navigator.clipboard?.writeText(share).then(() => toast.success('Copied'), () => toast('Select the details and copy them'))}><Copy /> Copy</Button><Button variant="primary" onClick={onClose}>Done</Button></>}>
-        <div className="mb-2 rounded-2xl bg-subtle p-5">
-          <div className="mb-3 flex items-center gap-3"><Avatar name={made.name} src={made.photo} /><span className="font-semibold">{made.name}</span><Badge tone="warn">Invitation pending</Badge></div>
-          <dl className="grid grid-cols-[auto_1fr] gap-x-6 gap-y-2 text-sm">
-            <dt className="text-muted">Login ID</dt><dd className="break-all font-mono">{made.email}</dd>
-            <dt className="text-muted">Password</dt><dd className="font-mono">{pw}</dd>
-            <dt className="text-muted">Access</dt><dd>{made.role}</dd>
-            <dt className="text-muted">Batches</dt><dd>{made.batchIds.length || 'None yet'}</dd>
-          </dl>
-        </div>
-        <p className="pb-2 text-xs text-muted">Default password: first 4 letters of the name @ last 4 digits of the phone. They can change it after signing in.</p>
-      </Dialog>
-    );
-  }
 
   return (
     <Dialog wide open={open} onOpenChange={(v) => !v && onClose()} title={member ? 'Edit details' : `Add faculty · ${{ details: 'Step 1 of 3 · Details', batches: 'Step 2 of 3 · Batches', subjects: 'Step 3 of 3 · Subjects per batch' }[step]}`}

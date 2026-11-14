@@ -265,9 +265,9 @@ export function Dialog({ open, onOpenChange, title, desc, children, footer, wide
   return (
     <DialogPrimitive.Root open={open} onOpenChange={onOpenChange}>
       <DialogPrimitive.Portal>
-        <DialogPrimitive.Overlay className="fixed inset-0 z-50 bg-black/40 backdrop-blur-[2px] data-[state=open]:animate-fade-in data-[state=closed]:animate-fade-out" />
+        <DialogPrimitive.Overlay className="fixed inset-0 z-50 bg-black/40 backdrop-blur-[2px] data-[state=open]:animate-fade-in" />
         <DialogPrimitive.Content aria-describedby={undefined}
-          className={cn('fixed left-1/2 top-[12vh] z-50 flex max-h-[80vh] w-[calc(100vw-32px)] -translate-x-1/2 flex-col rounded-2xl bg-panel shadow-float', wide ? 'max-w-2xl' : 'max-w-md', 'data-[state=open]:animate-dialog-in data-[state=closed]:animate-dialog-out', className)}>
+          className={cn('fixed left-1/2 top-[12vh] z-50 flex max-h-[80vh] w-[calc(100vw-32px)] -translate-x-1/2 flex-col rounded-2xl bg-panel shadow-float', wide ? 'max-w-2xl' : 'max-w-md', 'data-[state=open]:animate-dialog-in', className)}>
           <div className="flex items-start justify-between gap-4 px-5 pb-1 pt-4">
             <div><DialogPrimitive.Title className="text-base font-semibold">{title}</DialogPrimitive.Title>
               {desc && <DialogPrimitive.Description className="mt-0.5 text-sm text-muted">{desc}</DialogPrimitive.Description>}</div>

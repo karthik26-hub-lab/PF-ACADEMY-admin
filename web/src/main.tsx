@@ -1,6 +1,7 @@
 import { StrictMode, useEffect } from 'react';
 import { createRoot } from 'react-dom/client';
 import { Toaster } from 'sonner';
+import { Celebration } from './components/Celebrate';
 import { MotionConfig } from 'framer-motion';
 import './index.css';
 import { useRoute } from './lib/router';
@@ -85,6 +86,7 @@ function App() {
       <CommandMenu />
       <Shortcuts />
       <Dialogs />
+      <Celebration />
     </TooltipProvider>
   );
 }

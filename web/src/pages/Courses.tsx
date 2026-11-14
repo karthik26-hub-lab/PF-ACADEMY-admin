@@ -6,6 +6,7 @@ import { BookOpen, ChevronRight, CloudUpload, FileText, Folder, FolderOpen, Fold
 import { useMemo, useRef, useState, type ElementType } from 'react';
 import { toast } from 'sonner';
 import { Page } from '../components/layout/Page';
+import { celebrate } from '../components/Celebrate';
 import { Badge, Button, Card, Dialog, DropdownContent, DropdownItem, DropdownMenu, DropdownSeparator, DropdownTrigger, EmptyState, Field, Input, Segmented, Select, Switch, btn } from '../components/ui';
 import { KIND, placeOf, type Chapter, type CourseInfo, type Folder as FolderT, type Material, type MaterialKind, type Subject } from '../lib/courses';
 import { href, navigate } from '../lib/router';
@@ -225,10 +226,10 @@ export function CourseExplorer({ id }: { id: string }) {
       {(pop?.kind === 'upload' || pop?.kind === 'edit' || pop?.kind === 'replace') && <MaterialDialog course={c} at={pop.kind === 'upload' ? pop.at : undefined} m={pop.kind === 'upload' ? undefined : pop.m} replace={pop.kind === 'replace'} onClose={close} />}
       {pop?.kind === 'subject' && <NameDialog title={pop.subject ? 'Edit subject' : `New subject in ${c.name}`} label="Subject name" placeholder="Advanced Accounting" initial={pop.subject?.name}
         taken={c.subjects.filter((s) => s.id !== pop.subject?.id).map((s) => s.name)} groups={c.subjects.some((s) => s.group) ? pop.subject?.group ?? c.subjects.find((s) => s.group)?.group ?? '' : undefined} onClose={close}
-        onSave={(name, group = '') => { updateCourse(c.id, { subjects: pop.subject ? c.subjects.map((s) => (s.id === pop.subject!.id ? { ...s, name, group } : s)) : [...c.subjects, { id: uid(), name, group, chapters: [] }] }); toast.success(pop.subject ? 'Subject saved' : `Subject “${name}” added`); }} />}
+        onSave={(name, group = '') => { updateCourse(c.id, { subjects: pop.subject ? c.subjects.map((s) => (s.id === pop.subject!.id ? { ...s, name, group } : s)) : [...c.subjects, { id: uid(), name, group, chapters: [] }] }); if (pop.subject) toast.success('Subject saved'); else celebrate(`Subject “${name}” added`); }} />}
       {pop?.kind === 'chapter' && (() => { const s = c.subjects.find((x) => x.id === pop.subjectId)!; return <NameDialog title={pop.chapter ? 'Rename chapter' : `New chapter in ${s.name}`} label="Chapter name" placeholder="AS 10 – Property, Plant & Equipment" initial={pop.chapter?.name}
         taken={s.chapters.filter((x) => x.id !== pop.chapter?.id).map((x) => x.name)} onClose={close}
-        onSave={(name) => { updateCourse(c.id, { subjects: c.subjects.map((x) => x.id !== s.id ? x : { ...x, chapters: pop.chapter ? x.chapters.map((ch) => (ch.id === pop.chapter!.id ? { ...ch, name } : ch)) : [...x.chapters, { id: uid(), name }] }) }); toast.success(pop.chapter ? 'Chapter renamed' : `Chapter “${name}” added`); }} />; })()}
+        onSave={(name) => { updateCourse(c.id, { subjects: c.subjects.map((x) => x.id !== s.id ? x : { ...x, chapters: pop.chapter ? x.chapters.map((ch) => (ch.id === pop.chapter!.id ? { ...ch, name } : ch)) : [...x.chapters, { id: uid(), name }] }) }); if (pop.chapter) toast.success('Chapter renamed'); else celebrate(`Chapter “${name}” added`, { description: 'Open it to add folders and upload materials.' }); }} />; })()}
       {pop?.kind === 'folder' && <FolderNameDialog course={c} at={pop.at} folder={pop.folder} onClose={close} />}
       {pop?.kind === 'delete' && (() => {
         const ids = pop.what === 'folder' ? withChildren(folders, pop.id) : folders.filter((x) => (pop.what === 'subject' ? x.subjectId : x.chapterId) === pop.id).map((x) => x.id);
@@ -271,7 +272,7 @@ function FolderNameDialog({ course, at, folder, onClose, onMade }: { course: Cou
   const { folders, saveFolder } = useStore();
   const siblings = foldersIn(folders.filter((x) => x.courseId === course.id), folder ? { subjectId: folder.subjectId, chapterId: folder.chapterId, folderId: folder.parentId } : at).filter((x) => x.id !== folder?.id).map((x) => x.name);
   return <NameDialog title={folder ? 'Rename folder' : 'New folder'} label="Folder name" placeholder="Class handouts" initial={folder?.name} taken={siblings} onClose={onClose}
-    onSave={(name) => { const fid = saveFolder(folder ? { ...folder, name } : { name, courseId: course.id, subjectId: at.subjectId!, chapterId: at.chapterId, parentId: at.folderId }, folder?.id); toast.success(folder ? 'Folder renamed' : `Folder “${name}” created`); onMade?.(fid); }} />;
+    onSave={(name) => { const fid = saveFolder(folder ? { ...folder, name } : { name, courseId: course.id, subjectId: at.subjectId!, chapterId: at.chapterId, parentId: at.folderId }, folder?.id); if (folder) toast.success('Folder renamed'); else celebrate(`Folder “${name}” created`); onMade?.(fid); }} />;
 }
 
 /** Upload (one material per file), edit details, or replace the file. Filed under subject → chapter → folder. Access: all the course's batches or chosen ones. */

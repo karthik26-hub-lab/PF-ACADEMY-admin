@@ -4,9 +4,10 @@ import QRCode from 'qrcode';
 import readXlsxFile from 'read-excel-file';
 import { useEffect, useMemo, useState, type FormEvent } from 'react';
 import { toast } from 'sonner';
-import { COURSES, defaultPassword, useStore, validEmail, type Batch, type Course, type Gender, type Student, type StudentDetails } from '../lib/store';
+import { COURSES, defaultPassword, useStore, validEmail, type Batch, type Course, type Gender, type StudentDetails } from '../lib/store';
 import { EventDialog, RecordedDialog } from './CalendarDialogs';
 import { FacultyDialog } from './FacultyDialog';
+import { celebrate } from './Celebrate';
 import { CalendarImportDialog } from './CalendarImport';
 import { useUI } from '../lib/ui-state';
 import { cn, downloadCSV } from '../lib/utils';
@@ -38,7 +39,7 @@ function BatchDialog() {
     const data = { ...f, name: f.name.trim(), endDate: f.endDate || undefined };
     if (editing) updateBatch(editing.id, { ...data, facultyIds: f.facultyId && !editing.facultyIds.includes(f.facultyId) ? [f.facultyId, ...editing.facultyIds] : editing.facultyIds });
     else addBatch(data);
-    toast.success(editing ? 'Batch updated' : 'Batch created'); d.close();
+    d.close(); if (editing) toast.success('Batch updated'); else celebrate(`Batch “${data.name}” created`, { description: 'Add students next, or open it from Batches.' });
   };
   return (
     <Dialog open={d.open} onOpenChange={d.onOpenChange} title={editing ? 'Edit batch' : 'New batch'} desc="Students belong to a batch. Courses, faculty and exams are given to batches."
@@ -105,7 +106,6 @@ function ManualForm({ onDone }: { onDone: () => void }) {
   const active = batches.filter((b) => b.status === 'active');
   const blank = (): Form => ({ name: '', dob: '', gender: 'Male', phone: '', email: '', course: 'CA Foundation', batchId: active.find((b) => b.course === 'CA Foundation')?.id ?? '', parentName: '', parentPhone: '', admissionDate: todayIso() });
   const [f, setF] = useState<Form>(blank);
-  const [done, setDone] = useState<{ student: Student; password: string } | null>(null);
   const set = (p: Partial<Form>) => setF((x) => ({ ...x, ...p }));
   const text = (k: keyof StudentDetails) => (e: { target: { value: string } }) => set({ [k]: e.target.value });
   const taken = students.some((x) => x.loginId === f.email.trim().toLowerCase());
@@ -116,30 +116,13 @@ function ManualForm({ onDone }: { onDone: () => void }) {
     const { course: _c, ...st } = f;
     const r = addStudent({ ...st, name: f.name.trim(), email: f.email.trim(), phone: f.phone.trim(), parentName: f.parentName.trim(), parentPhone: f.parentPhone.trim(), joinedVia: 'manual' });
     if ('error' in r) { toast.error(r.error); return; }
-    setDone(r);
+    const batch = batches.find((b) => b.id === r.student.batchId)?.name;
+    onDone();
+    celebrate(`${r.student.name} added`, { description: `${r.student.studentId} · Login ID ${r.student.loginId} · Password ${r.password} · ${batch}`, copy: `${academy.name || 'Parallax Flow'}
+Student ID: ${r.student.studentId}
+Login ID: ${r.student.loginId}
+Password: ${r.password}` });
   };
-  if (done) {
-    const share = `${academy.name || 'Parallax Flow'}\nStudent ID: ${done.student.studentId}\nLogin ID: ${done.student.loginId}\nPassword: ${done.password}`;
-    return (
-      <div className="space-y-4">
-        <div className="rounded-2xl bg-subtle p-5">
-          <div className="mb-3 flex items-center gap-2"><Badge tone="pop">Login created</Badge><span className="text-sm font-semibold">{done.student.name}</span></div>
-          <dl className="grid grid-cols-[auto_1fr] gap-x-6 gap-y-2 text-sm">
-            <dt className="text-muted">Student ID</dt><dd className="font-mono">{done.student.studentId}</dd>
-            <dt className="text-muted">Login ID</dt><dd className="break-all font-mono">{done.student.loginId}</dd>
-            <dt className="text-muted">Password</dt><dd className="font-mono">{done.password}</dd>
-            <dt className="text-muted">Batch</dt><dd>{batches.find((b) => b.id === done.student.batchId)?.name}</dd>
-          </dl>
-        </div>
-        <p className="text-xs text-muted">Default password: first 4 letters of the name @ year of birth. The student can change it in the app.</p>
-        <div className="flex justify-end gap-2">
-          <Button onClick={() => navigator.clipboard?.writeText(share).then(() => toast.success('Copied'), () => toast('Select the details and copy them'))}><Copy /> Copy</Button>
-          <Button onClick={() => { setF(blank()); setDone(null); }}>Add another</Button>
-          <Button variant="primary" onClick={onDone}>Done</Button>
-        </div>
-      </div>
-    );
-  }
   return (
     <form onSubmit={submit} className="grid gap-4 sm:grid-cols-2">
       <Field label="Student name" htmlFor="as-name"><Input id="as-name" autoFocus value={f.name} onChange={text('name')} /></Field>
