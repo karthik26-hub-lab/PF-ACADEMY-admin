@@ -22,6 +22,7 @@ import { Reviews } from './pages/Reviews';
 import { Students } from './pages/Students';
 import { StudentDetail } from './pages/StudentDetail';
 import { StudentReport } from './pages/StudentReport';
+import { ReportPage } from './pages/reports';
 import { Announcements } from './pages/Announcements';
 import { CourseExplorer, Courses, Materials } from './pages/Courses';
 import { QuestionBank } from './pages/QuestionBank';
@@ -76,6 +77,7 @@ function App() {
       case 'results': return <Results key={route.id ?? 'all'} id={route.id} />;
       case 'assessments': return <AssessmentsHub />;
       case 'reports': return <ReportsHub />;
+      case 'report': return <ReportPage key={route.kind} kind={route.kind} />;
       case 'settings': return <Settings tab={route.tab} />;
       case 'store': return <Store tab={route.tab} />;
       default: return <Overview />;

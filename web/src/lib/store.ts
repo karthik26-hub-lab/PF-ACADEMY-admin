@@ -56,6 +56,7 @@ export interface Student {
   /** The one phone the app is tied to; a sign-in on another phone waits here for approval. */
   device: string; deviceRequest?: { name: string; at: number };
   activity: StudentActivity[];
+  /** Offline, online or recorded classes (Phase 4: fees and attendance follow it). */ mode?: ClassMode;
 }
 /** The details a student enters in the app when joining with a QR or academy code. */
 export type StudentDetails = Pick<Student, 'name' | 'phone' | 'email' | 'dob' | 'gender' | 'parentName' | 'parentPhone'>;
@@ -93,6 +94,7 @@ export interface JoinCode { id: string; code: string; batchId: string; limit: nu
 import type { CourseInfo, Folder, Material } from './courses';
 import type { QBank } from './banks';
 import type { MarkChange } from './scripts';
+import type { ClassMode, Payment } from './insights';
 export type { CourseInfo, Folder, Material, QBank };
 export interface Revenue { ebooks: number; tests: number; questionBanks: number; monthly: number[] }
 export interface Feed { uploads: { title: string; kind: string; at: number }[]; studentActs: { text: string; at: number }[] }
@@ -106,7 +108,7 @@ export interface Data {
   batches: Batch[]; members: Member[]; students: Student[]; joinRequests: JoinRequest[]; exams: Exam[];
   events: CalendarEvent[]; recorded: RecordedDay[]; codes: JoinCode[]; courses: CourseInfo[]; materials: Material[]; folders: Folder[]; banks: QBank[]; templates: TestTemplate[];
   /** Marks changes, comments and reviews per script (examId:studentId), oldest first. */
-  marking: Record<string, MarkChange[]>; revenue: Revenue; feed: Feed;
+  marking: Record<string, MarkChange[]>; /** Fee instalments paid by hand, by instalment key. */ payments: Record<string, Payment>; revenue: Revenue; feed: Feed;
   activity: Activity[]; defaults: Defaults; access: Access; roles: CustomRole[]; announcements: Announcement[];
 }
 
@@ -133,6 +135,8 @@ interface State extends Data {
   saveTemplate: (name: string, config: Partial<Exam>) => void;
   /** Records a change to a script (marks, comment, review) with who did it. */
   markScript: (key: string, change: Omit<MarkChange, 'by' | 'at'>) => void;
+  /** Records a fee instalment as paid (cash, cheque…), with who recorded it. */
+  recordPayment: (key: string, method: string) => void;
   removeTemplate: (id: string) => void;
   /** Removes folders (and what's inside them) by id. */
   removeFolders: (ids: string[]) => void;
@@ -191,7 +195,7 @@ export const emptyData = (): Data => ({
   sample: false,
   academy: { name: '', city: '', email: '', phone: '', code: '', gstin: '', address: '' },
   me: { name: '', email: '' },
-  batches: [], members: [], students: [], joinRequests: [], exams: [], events: [], recorded: [], codes: [], courses: [], materials: [], folders: [], banks: [], templates: [], marking: {},
+  batches: [], members: [], students: [], joinRequests: [], exams: [], events: [], recorded: [], codes: [], courses: [], materials: [], folders: [], banks: [], templates: [], marking: {}, payments: {},
   revenue: { ebooks: 0, tests: 0, questionBanks: 0, monthly: Array(12).fill(0) }, feed: { uploads: [], studentActs: [] },
   activity: [],
   defaults: { policy: 'clean', late: 'none', flagBelow: 0.7 },
@@ -199,7 +203,7 @@ export const emptyData = (): Data => ({
   roles: [], announcements: [],
 });
 
-const DATA_KEYS: (keyof Data)[] = ['sample', 'academy', 'me', 'batches', 'members', 'students', 'joinRequests', 'exams', 'events', 'recorded', 'codes', 'courses', 'materials', 'folders', 'banks', 'templates', 'marking', 'revenue', 'feed', 'activity', 'defaults', 'access', 'roles', 'announcements'];
+const DATA_KEYS: (keyof Data)[] = ['sample', 'academy', 'me', 'batches', 'members', 'students', 'joinRequests', 'exams', 'events', 'recorded', 'codes', 'courses', 'materials', 'folders', 'banks', 'templates', 'marking', 'payments', 'revenue', 'feed', 'activity', 'defaults', 'access', 'roles', 'announcements'];
 
 export const useStore = create<State>()(
   persist(
@@ -254,6 +258,7 @@ export const useStore = create<State>()(
         removeMaterial: (id) => set((s) => ({ materials: s.materials.filter((x) => x.id !== id) })),
         saveBank: (b, id) => { const bid = id ?? uid(); set((s) => ({ banks: id ? s.banks.map((x) => (x.id === id ? { ...x, ...b } : x)) : [{ ...b, id: bid, createdAt: Date.now(), by: s.me.name || 'Admin' }, ...s.banks] })); return bid; },
         removeBank: (id) => set((s) => ({ banks: s.banks.map((x) => (x.id === id ? { ...x, deleted: true } : x)) })),
+        recordPayment: (key, method) => set((s) => ({ payments: { ...s.payments, [key]: { at: Date.now(), method, by: s.me.name || 'Admin' } } })),
         markScript: (key, change) => set((s) => ({ marking: { ...s.marking, [key]: [...(s.marking[key] ?? []), { ...change, by: s.me.name || 'Admin', at: Date.now() }] } })),
         saveTemplate: (name, config) => set((s) => ({ templates: [...s.templates.filter((t) => t.name !== name), { id: uid(), name, config }] })),
         removeTemplate: (id) => set((s) => ({ templates: s.templates.filter((t) => t.id !== id) })),
@@ -333,7 +338,7 @@ export const useStore = create<State>()(
       };
     },
     {
-      name: 'pf-academy-v19',
+      name: 'pf-academy-v20',
       storage: createJSONStorage(() => {
         try { localStorage.setItem('__t', '1'); localStorage.removeItem('__t'); return localStorage; }
         catch { const m = new Map<string, string>(); return { getItem: (k) => m.get(k) ?? null, setItem: (k, v) => void m.set(k, v), removeItem: (k) => void m.delete(k) }; }

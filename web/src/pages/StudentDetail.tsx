@@ -8,6 +8,7 @@ import { Avatar, Badge, Button, Card, CardHeader, Dialog, DropdownContent, Dropd
 import { href, navigate } from '../lib/router';
 import { defaultPassword, useStore, validEmail, type Gender, type StudentActivity, type StudentDetails, type StudentStatus } from '../lib/store';
 import { fmtDate, fmtDateTime } from '../lib/utils';
+import { MODE, modeOf, type ClassMode } from '../lib/insights';
 import { STATUS, joinDate } from './Students';
 
 const ACT_ICON: Record<StudentActivity['kind'], ElementType> = { mcq: ListChecks, test: ClipboardCheck, batch: ArrowLeftRight, device: Smartphone, login: LogIn };
@@ -66,6 +67,7 @@ export function StudentDetail({ id }: { id: string }) {
           <dl className="space-y-3 p-5 pt-2 text-sm">
             <div className={row}><dt className="text-muted">Student ID</dt><dd className="font-mono">{s.studentId}</dd></div>
             <div className={row}><dt className="text-muted">Batch</dt><dd><Select aria-label="Batch" value={s.batchId} onChange={(e) => { updateStudent(s.id, { batchId: e.target.value }); toast.success('Moved to the new batch'); }}>{batches.filter((x) => x.status === 'active' || x.id === s.batchId).map((x) => <option key={x.id} value={x.id}>{x.name}</option>)}</Select></dd></div>
+            <div className={row}><dt className="text-muted">Classes</dt><dd><Segmented value={modeOf(s)} onChange={(m) => { updateStudent(s.id, { mode: m }); toast.success(`Now ${MODE[m].toLowerCase()}`, { description: 'Fees and attendance follow the new mode.' }); }} options={(Object.keys(MODE) as ClassMode[]).map((m) => ({ value: m, label: MODE[m] }))} /></dd></div>
             <div className={row}><dt className="text-muted">Status</dt><dd><Select aria-label="Status" value={s.status} onChange={(e) => updateStudent(s.id, { status: e.target.value as StudentStatus })}><option value="active">Active</option><option value="inactive">Inactive</option><option value="suspended">Suspended</option></Select></dd></div>
             <div className={row}><dt className="text-muted">Login ID</dt><dd className="break-all font-mono text-xs">{s.loginId}</dd></div>
             <div className={row}><dt className="text-muted">Date of joining</dt><dd>{joinDate(s.admissionDate)}</dd></div>

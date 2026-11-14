@@ -1,6 +1,6 @@
 import { statsOf } from '../lib/banks';
 import { motion } from 'framer-motion';
-import { ArrowUpRight, BarChart3, CalendarDays, CheckCheck, ClipboardCheck, FileQuestion, FolderOpen, GraduationCap, Inbox, Layers, LineChart, Megaphone, PenLine, Trophy, UserCheck, Users } from 'lucide-react';
+import { ArrowUpRight, BarChart3, IndianRupee, CalendarDays, CheckCheck, ClipboardCheck, FileQuestion, FolderOpen, GraduationCap, Inbox, Layers, LineChart, Megaphone, PenLine, Trophy, UserCheck, Users } from 'lucide-react';
 import type { ReactNode } from 'react';
 import { Donut, HatchedBars, Ring, Sparkline } from '../components/charts';
 import { Page } from '../components/layout/Page';
@@ -8,7 +8,9 @@ import { Avatar, Badge } from '../components/ui';
 import { href, type Route } from '../lib/router';
 import { annStatus, examStatus, useStore } from '../lib/store';
 import { scriptsOf } from '../lib/scripts';
-import { cn } from '../lib/utils';
+import { cn, inrShort } from '../lib/utils';
+import { MODE, attendanceOf, feePlan, feeTotals, learningOf, modeOf } from '../lib/insights';
+import { salesSummary, useShop } from '../lib/shop';
 
 type Tile = { title: string; desc: string; icon: typeof Users; to?: Route; metric?: ReactNode; sub?: ReactNode; visual?: ReactNode; phase?: number };
 
@@ -114,13 +116,23 @@ export function AssessmentsHub() {
 }
 
 export function ReportsHub() {
-  const { students } = useStore();
+  const { students, batches, events, payments } = useStore();
+  const shop = useShop();
   const avg = students.length ? Math.round(students.reduce((a, s) => a + (s.avgScore ?? 0), 0) / students.length) : 0;
+  const fees = students.map((s) => ({ m: modeOf(s), ...feeTotals(feePlan(s, batches.find((b) => b.id === s.batchId), payments)) }));
+  const byMode = (m: string) => fees.filter((t) => t.m === m).reduce((a, t) => a + t.paid, 0);
+  const collected = fees.reduce((a, t) => a + t.paid, 0), overdue = fees.reduce((a, t) => a + t.overdue, 0);
+  const store = salesSummary(shop.sales, shop.mine, 12).total * (shop.rules.payout === 'parallax' ? 1 - shop.rules.commission / 100 : 1);
+  const att = students.map((s) => attendanceOf(s, events)), held = att.reduce((a, x) => a + x.held, 0), present = att.reduce((a, x) => a + x.present, 0);
+  const consistency = students.length ? Math.round(students.reduce((a, s) => a + learningOf(s, 30).consistency, 0) / students.length) : 0;
   return (
-    <Hub crumb="Reports" title="Reports" desc="Performance, learning activity and attendance." tiles={[
-      { title: 'Performance', desc: 'Marks and progress over time', icon: LineChart, phase: 4, metric: `${avg}%`, sub: 'Average score', visual: <Sparkline values={[58, 61, 60, 64, 63, 67, avg || 66]} /> },
-      { title: 'Learning analytics', desc: 'Materials, chapters, MCQs, consistency', icon: BarChart3, phase: 4 },
-      { title: 'Attendance', desc: 'Participation and attendance', icon: CheckCheck, phase: 4 },
+    <Hub crumb="Reports" title="Reports" desc="Revenue and fees, performance, learning activity and attendance." tiles={[
+      { title: 'Revenue and fees', desc: 'Fees by class mode, store sales, payouts', icon: IndianRupee, to: { page: 'report', kind: 'revenue' }, metric: inrShort(collected + store), sub: `earned · ${inrShort(overdue)} fees overdue`,
+        visual: <div className="flex items-center gap-3"><Donut size={84} thickness={12} center={<span className="text-[10px]">fees</span>} segments={[{ label: 'Offline', value: byMode('offline'), tone: 'ink' }, { label: 'Online', value: byMode('online'), tone: 'pop' }, { label: 'Recorded', value: byMode('recorded'), tone: 'hatch' }]} />
+          <span className="space-y-0.5 text-2xs text-muted">{(['offline', 'online', 'recorded'] as const).map((m, i) => <span key={m} className="flex items-center gap-1.5"><i className={cn('size-2 rounded-full', ['bg-fg', 'bg-pop', 'hatch ring-1 ring-border-strong'][i])} />{MODE[m]} {inrShort(byMode(m))}</span>)}<span className="block">Store {inrShort(store)}</span></span></div> },
+      { title: 'Performance', desc: 'Marks and progress over time', icon: LineChart, to: { page: 'report', kind: 'performance' }, metric: `${avg}%`, sub: 'Average score', visual: <Sparkline values={[58, 61, 60, 64, 63, 67, avg || 66]} /> },
+      { title: 'Learning analytics', desc: 'Materials, chapters, MCQs, consistency', icon: BarChart3, to: { page: 'report', kind: 'learning' }, metric: `${consistency}%`, sub: 'Average learning consistency', visual: <Ring value={consistency} size={64} stroke={8} label="Consistency" /> },
+      { title: 'Attendance', desc: 'Offline, online and recorded', icon: CheckCheck, to: { page: 'report', kind: 'attendance' }, metric: `${held ? Math.round((present / held) * 100) : 0}%`, sub: `of ${held.toLocaleString('en-IN')} class seats attended`, visual: <Ring value={held ? (present / held) * 100 : 0} size={64} stroke={8} tone="pop" label="Attendance" /> },
     ]} />
   );
 }

@@ -138,7 +138,8 @@ export function Overview() {
             <BoxHead title="Store revenue" sub={shop.addon ? 'Your store, all time' : 'Preview · store add-on locked'} right={<Badge tone="pop">Sample</Badge>} />
             <div className="flex flex-wrap items-center gap-3"><span className="tnum text-[34px] font-bold leading-[1.1] tracking-tight" title={inr(totalRevenue)}>{inrShort(totalRevenue)}</span><Delta value={salesGrowth} /></div>
             <div className="mt-8"><HatchedBars data={monthly.map((v, i) => ({ label: months[i], value: v }))} height={170} format={(v) => inrShort(v)} highlight={monthly.length - 1} /></div>
-            <div className="mt-5 grid grid-cols-3 gap-2">
+            <a href={href({ page: 'report', kind: 'revenue' })} className="mt-4 inline-flex items-center gap-1 text-xs font-semibold hover:underline">View revenue report: fees and store <ArrowRight className="size-3" /></a>
+            <div className="mt-4 grid grid-cols-3 gap-2">
               {[['E-books', sales.kinds.ebooks], ['Tests', sales.kinds.tests], ['Question banks', sales.kinds.banks]].map(([l, v]) => (
                 <button key={l as string} onClick={() => navigate({ page: 'store', tab: 'sales' })} className="group rounded-xl bg-subtle p-3 text-left transition hover:bg-hover">
                   <div className="text-2xs text-muted">{l}</div><div className="tnum mt-0.5 text-sm font-bold" title={inr(v as number)}>{inrShort(v as number)}</div>

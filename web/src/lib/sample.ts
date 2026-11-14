@@ -86,6 +86,7 @@ export function makeSample(): Data {
         gender: pickOne<Gender>(['Male', 'Female']), parentName: `${pickOne(PARENT)} ${name.split(' ')[1]}`, parentPhone: phone(),
         createdAt: now - joined * 86400e3, admissionDate: iso(day(-joined)), status,
         progress: Math.round(20 + r() * 75), avgScore: trend[trend.length - 1], trend, joinedVia: pickOne(['manual', 'excel', 'excel', 'qr', 'code'] as const),
+        mode: (n * 7) % 10 < 6 ? 'offline' : (n * 7) % 10 < 9 ? 'online' : 'recorded',
         device: pickOne(PHONES), deviceRequest: ask ? { name: pickOne(PHONES), at: now - Math.floor(r() * 48) * 3600e3 } : undefined, activity: acts(),
       });
     }
@@ -175,6 +176,12 @@ export function makeSample(): Data {
       events.push({ id: `t${d}`, date: iso(dt), title: `Practice set – ${TOPICS[sub][(d + 12) % 5]}`, type: 'task', batchId: `b${(d + 25) % ACTIVE}`, subject: sub });
     }
   }
+  // Six weeks of past classes for every active batch (about two a week), so attendance has history.
+  for (let b = 0; b < ACTIVE; b++) for (let d = -42; d < -6; d++) {
+    if ((d + 42 + b) % 3 || day(d).getDay() === 0) continue;
+    const sub = subjects[(b + d + 42) % subjects.length], [start, end] = SLOTS[b % SLOTS.length];
+    events.push({ id: `p${b}${d}`, date: iso(day(d)), time: start, end, title: `${sub} class`, type: 'class', batchId: `b${b}`, subject: sub, topic: TOPICS[sub][(b + d + 42) % 5], facultyId: facultyFor(sub), delivery: b % 3 ? ['offline', 'online'] : ['offline'] });
+  }
   events.push({ id: 'h1', date: iso(day(6)), title: 'Academy holiday', type: 'holiday' });
   events.push({ id: 'h2', date: iso(day(27)), title: 'Diwali break', type: 'holiday' });
   events.push({ id: 'd1', date: iso(day(3)), title: 'Fee due date · Nov instalment', type: 'deadline' });
@@ -245,7 +252,7 @@ export function makeSample(): Data {
       dob: `${2003 + (i % 4)}-0${1 + i}-1${i}`, parentName: `${PARENT[i]} ${name.split(' ')[1]}`, parentPhone: `+91 9${7000000 + i * 911}45`, at: now - ago,
     })),
     exams, events, recorded, codes,
-    ...learning, banks, marking: {},
+    ...learning, banks, marking: {}, payments: {},
     revenue: { ebooks: 2340000, tests: 410000, questionBanks: 345000, monthly: [142, 158, 171, 166, 188, 203, 214, 236, 229, 258, 284, 311].map((v) => v * 1000) },
     feed: {
       uploads: [
