@@ -8,7 +8,7 @@ export type Role = 'Academy admin' | 'Exam manager' | 'Faculty' | 'Reviewer';
 export type Policy = 'clean' | 'auto' | 'manual';
 export type Mode = 'timed' | 'practice';
 export type Late = 'none' | '30m' | '24h';
-export type ExamStatus = 'draft' | 'scheduled' | 'live' | 'closed';
+export type ExamStatus = 'draft' | 'scheduled' | 'live' | 'closed' | 'cancelled';
 export type ExamKind = 'mcq' | 'descriptive' | 'mixed';
 export type StudentStatus = 'active' | 'inactive' | 'suspended';
 export type Gender = 'Male' | 'Female' | 'Other';
@@ -68,7 +68,16 @@ export interface Exam {
   policy: Policy; reviewerId: string; see: See;
   draft: boolean; closedAt: number | null; createdAt: number;
   received: number; evaluated: number; flagged: number; reviewed: number; published: number;
+  // Phase 3: built from the question bank or an uploaded paper, filed by course/subject/chapters.
+  source?: 'bank' | 'paper'; courseId?: string; chapterIds?: string[]; description?: string; group?: string;
+  /** The picked questions (parts), in order; `roundingIds` were added to round the total marks. */ partIds?: string[]; roundingIds?: string[];
+  onExpiry?: 'submit' | 'retain'; shuffle?: boolean; shuffleOptions?: boolean; instructions?: string;
+  maxMarks?: number; duration?: number; /** Marks lost per wrong MCQ answer (0 = none). */ negative?: number;
+  /** Individual students, when the test isn't for whole batches. */ studentIds?: string[];
+  cancelled?: boolean;
 }
+/** A saved test setup to start new tests from. */
+export interface TestTemplate { id: string; name: string; config: Partial<Exam> }
 /**
  * A dated entry on the live calendar. `time` is the start, `end` the finish.
  * `batchId` empty means the whole academy. A deadline is shown to every student in the batch's course
@@ -82,18 +91,22 @@ export interface CalendarEvent {
 export interface RecordedDay { id: string; course: Course; day: number; type: RecordedType; subject?: string; chapter?: string; videos: string[]; topics?: string }
 export interface JoinCode { id: string; code: string; batchId: string; limit: number; used: number; createdAt: number; active: boolean }
 import type { CourseInfo, Folder, Material } from './courses';
-export type { CourseInfo, Folder, Material };
+import type { QBank } from './banks';
+import type { MarkChange } from './scripts';
+export type { CourseInfo, Folder, Material, QBank };
 export interface Revenue { ebooks: number; tests: number; questionBanks: number; monthly: number[] }
 export interface Feed { uploads: { title: string; kind: string; at: number }[]; studentActs: { text: string; at: number }[] }
 export interface Activity { id: string; kind: 'exam' | 'student' | 'batch' | 'team' | 'settings'; text: string; at: number }
-export interface Defaults { policy: Policy; late: Late; flagBelow: number }
+export interface Defaults { policy: Policy; late: Late; flagBelow: number; /** Pass mark in % for results. */ passPct?: number }
 export interface Access { academyCreatesLogins: boolean; joinWithCode: boolean; approveJoins: boolean; otpReset: boolean }
 
 export interface Data {
   sample: boolean;
   academy: Academy; me: Me;
   batches: Batch[]; members: Member[]; students: Student[]; joinRequests: JoinRequest[]; exams: Exam[];
-  events: CalendarEvent[]; recorded: RecordedDay[]; codes: JoinCode[]; courses: CourseInfo[]; materials: Material[]; folders: Folder[]; revenue: Revenue; feed: Feed;
+  events: CalendarEvent[]; recorded: RecordedDay[]; codes: JoinCode[]; courses: CourseInfo[]; materials: Material[]; folders: Folder[]; banks: QBank[]; templates: TestTemplate[];
+  /** Marks changes, comments and reviews per script (examId:studentId), oldest first. */
+  marking: Record<string, MarkChange[]>; revenue: Revenue; feed: Feed;
   activity: Activity[]; defaults: Defaults; access: Access; roles: CustomRole[]; announcements: Announcement[];
 }
 
@@ -113,6 +126,14 @@ interface State extends Data {
   patchMaterial: (id: string, m: Partial<Material>) => void;
   removeMaterial: (id: string) => void;
   saveFolder: (f: Omit<Folder, 'id'>, id?: string) => string;
+  /** Adds a bank (returns its id) or updates one. */
+  saveBank: (b: Omit<QBank, 'id' | 'createdAt' | 'by'>, id?: string) => string;
+  /** Hides a bank from the page and pickers; tests that used it keep their questions. */
+  removeBank: (id: string) => void;
+  saveTemplate: (name: string, config: Partial<Exam>) => void;
+  /** Records a change to a script (marks, comment, review) with who did it. */
+  markScript: (key: string, change: Omit<MarkChange, 'by' | 'at'>) => void;
+  removeTemplate: (id: string) => void;
   /** Removes folders (and what's inside them) by id. */
   removeFolders: (ids: string[]) => void;
   setAnnState: (id: string, state: Announcement['state']) => void;
@@ -170,7 +191,7 @@ export const emptyData = (): Data => ({
   sample: false,
   academy: { name: '', city: '', email: '', phone: '', code: '', gstin: '', address: '' },
   me: { name: '', email: '' },
-  batches: [], members: [], students: [], joinRequests: [], exams: [], events: [], recorded: [], codes: [], courses: [], materials: [], folders: [],
+  batches: [], members: [], students: [], joinRequests: [], exams: [], events: [], recorded: [], codes: [], courses: [], materials: [], folders: [], banks: [], templates: [], marking: {},
   revenue: { ebooks: 0, tests: 0, questionBanks: 0, monthly: Array(12).fill(0) }, feed: { uploads: [], studentActs: [] },
   activity: [],
   defaults: { policy: 'clean', late: 'none', flagBelow: 0.7 },
@@ -178,7 +199,7 @@ export const emptyData = (): Data => ({
   roles: [], announcements: [],
 });
 
-const DATA_KEYS: (keyof Data)[] = ['sample', 'academy', 'me', 'batches', 'members', 'students', 'joinRequests', 'exams', 'events', 'recorded', 'codes', 'courses', 'materials', 'folders', 'revenue', 'feed', 'activity', 'defaults', 'access', 'roles', 'announcements'];
+const DATA_KEYS: (keyof Data)[] = ['sample', 'academy', 'me', 'batches', 'members', 'students', 'joinRequests', 'exams', 'events', 'recorded', 'codes', 'courses', 'materials', 'folders', 'banks', 'templates', 'marking', 'revenue', 'feed', 'activity', 'defaults', 'access', 'roles', 'announcements'];
 
 export const useStore = create<State>()(
   persist(
@@ -231,6 +252,11 @@ export const useStore = create<State>()(
           : [{ ...m, id: uid(), updatedAt: Date.now(), version: 1, by: s.me.name || 'Admin' }, ...s.materials] })),
         patchMaterial: (id, m) => set((s) => ({ materials: s.materials.map((x) => (x.id === id ? { ...x, ...m, updatedAt: Date.now() } : x)) })),
         removeMaterial: (id) => set((s) => ({ materials: s.materials.filter((x) => x.id !== id) })),
+        saveBank: (b, id) => { const bid = id ?? uid(); set((s) => ({ banks: id ? s.banks.map((x) => (x.id === id ? { ...x, ...b } : x)) : [{ ...b, id: bid, createdAt: Date.now(), by: s.me.name || 'Admin' }, ...s.banks] })); return bid; },
+        removeBank: (id) => set((s) => ({ banks: s.banks.map((x) => (x.id === id ? { ...x, deleted: true } : x)) })),
+        markScript: (key, change) => set((s) => ({ marking: { ...s.marking, [key]: [...(s.marking[key] ?? []), { ...change, by: s.me.name || 'Admin', at: Date.now() }] } })),
+        saveTemplate: (name, config) => set((s) => ({ templates: [...s.templates.filter((t) => t.name !== name), { id: uid(), name, config }] })),
+        removeTemplate: (id) => set((s) => ({ templates: s.templates.filter((t) => t.id !== id) })),
         saveFolder: (f, id) => { const fid = id ?? uid(); set((s) => ({ folders: id ? s.folders.map((x) => (x.id === id ? { ...x, ...f } : x)) : [...s.folders, { ...f, id: fid }] })); return fid; },
         removeFolders: (ids) => set((s) => ({ folders: s.folders.filter((x) => !ids.includes(x.id)), materials: s.materials.filter((m) => !m.folderId || !ids.includes(m.folderId)) })),
         setAnnState: (id, state) => set((s) => ({ announcements: s.announcements.map((x) => (x.id === id ? { ...x, state } : x)) })),
@@ -307,7 +333,7 @@ export const useStore = create<State>()(
       };
     },
     {
-      name: 'pf-academy-v11',
+      name: 'pf-academy-v19',
       storage: createJSONStorage(() => {
         try { localStorage.setItem('__t', '1'); localStorage.removeItem('__t'); return localStorage; }
         catch { const m = new Map<string, string>(); return { getItem: (k) => m.get(k) ?? null, setItem: (k, v) => void m.set(k, v), removeItem: (k) => void m.delete(k) }; }
@@ -319,6 +345,7 @@ export const useStore = create<State>()(
 
 // ---------- derived ----------
 export function examStatus(e: Exam, now = Date.now()): ExamStatus {
+  if (e.cancelled) return 'cancelled';
   if (e.draft) return 'draft';
   if (e.closedAt) return 'closed';
   if (e.mode === 'timed') {

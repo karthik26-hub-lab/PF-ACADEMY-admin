@@ -185,7 +185,8 @@ const STATUS: Record<ExamStatus, { label: string; dot: string }> = {
   draft: { label: 'Draft', dot: 'border border-faint bg-transparent' },
   scheduled: { label: 'Scheduled', dot: 'bg-fg' },
   live: { label: 'Live', dot: 'bg-pop ring-2 ring-pop/30 animate-pulse' },
-  closed: { label: 'Closed', dot: 'bg-faint' },
+  closed: { label: 'Completed', dot: 'bg-faint' },
+  cancelled: { label: 'Cancelled', dot: 'bg-bad' },
 };
 export const StatusPill = ({ status }: { status: ExamStatus }) => (
   <span className="inline-flex items-center gap-1.5 whitespace-nowrap text-xs font-medium text-fg"><span className={cn('size-1.5 rounded-full', STATUS[status].dot)} />{STATUS[status].label}</span>

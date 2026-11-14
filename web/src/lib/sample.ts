@@ -1,6 +1,7 @@
 // Sample academy used for the preview. Every name and figure is made up.
 // The app labels it "Sample data", and Settings → Data clears it.
 import { sampleCourses } from './courses';
+import { sampleBanks } from './banks';
 import type { Batch, CalendarEvent, Course, RecordedDay, Data, Exam, ExamKind, Gender, JoinCode, Member, Student, StudentActivity, StudentStatus } from './store';
 
 function rng(seed: number) {
@@ -118,6 +119,26 @@ export function makeSample(): Data {
   exams.push(mk(57, 'Indirect Tax Practice', day(5, 10), 2, 'mixed', true));
   exams.push(mk(58, 'Final Revision Mock', day(20, 10), 3, 'descriptive', true));
 
+  const learning = sampleCourses(now, batches), banks = sampleBanks(learning.courses, now);
+  // Tests whose subject exists in the course structure are built from the question bank (so results show question-wise marks).
+  // Each test's subject comes from its batch's course, matched by the test name; if none fits, the test is renamed after the subject.
+  const KEYS: [RegExp, RegExp][] = [[/GST|Indirect/, /Indirect|Taxation/], [/Tax|PGBP|Capital Gains/, /Tax/], [/Audit/, /Audit/], [/Law/, /Corporate|Business Laws/], [/Cost/, /Cost/], [/FM|Ratio/, /FM|Financial Management/], [/Account|AS 10|Ind AS|Partnership/, /^(Advanced )?Accounting|Reporting/]];
+  exams.forEach((e, i) => {
+    const course = learning.courses.find((c) => c.name === batches.find((b) => b.id === e.batchIds[0])?.course);
+    if (!course) return;
+    const subject = course.subjects.find((s) => KEYS.some(([t, n]) => t.test(e.title) && n.test(s.name))) ?? course.subjects[i % course.subjects.length];
+    if (!KEYS.some(([t, n]) => t.test(e.title) && n.test(subject.name))) e.title = `${subject.name} ${e.kind === 'mcq' ? 'MCQ Test' : e.kind === 'mixed' ? 'Mock' : 'Chapter Test'}${e.title.match(/ \d+$/)?.[0] ?? ''}`;
+    e.subject = subject.name; e.fileName = `${e.title.replace(/\s+/g, '_')}.docx`;
+    // A few whole questions (with their sub-questions) from the subject's banks, of the test's type.
+    const pool = banks.filter((b) => b.subjectId === subject.id).flatMap((b) => b.questions).filter((q) => e.kind === 'mixed' || q.type === e.kind);
+    e.courseId = course.id; e.duration = e.kind === 'mcq' ? 45 : 180; e.negative = e.kind === 'mcq' ? 0.25 : 0;
+    if (pool.length) {
+      const parts = pool.slice(i % 3, (i % 3) + 6).flatMap((q) => q.parts);
+      e.source = 'bank'; e.partIds = parts.map((p) => p.id); e.maxMarks = parts.reduce((a, p) => a + p.marks, 0); e.questionCount = parts.length; e.fileName = 'Question bank';
+    }
+    else { e.source = 'paper'; e.maxMarks = 100; }
+  });
+
   // ---- Live calendar: offline and online sessions. One entry can run in both places. ----
   const TOPICS: Record<string, string[]> = {
     Accounting: ['AS 10 – Property, Plant & Equipment', 'Partnership – Admission', 'Company Accounts – Bonus Issue', 'Cash Flow Statements', 'AS 2 – Inventories'],
@@ -215,6 +236,7 @@ export function makeSample(): Data {
       publishAt: from === 0 && to === 0 ? undefined : local(day(from, 9)), expiresAt: to === 0 ? undefined : local(day(to, 18)),
       state, createdAt: now - (Math.abs(from) + 1) * 86400e3, reads,
     })),
+    templates: [{ id: 'tt1', name: 'Weekly MCQ test · 30 min', config: { kind: 'mcq', duration: 30, negative: 0.25, shuffle: true, shuffleOptions: true } }, { id: 'tt2', name: 'Descriptive chapter test · 3 hrs', config: { kind: 'descriptive', duration: 180, negative: 0, onExpiry: 'retain' } }],
     roles: [{ id: 'r1', name: 'Content coordinator', desc: 'Uploads and organises study material for all batches; no exams or students.', perms: { 'View courses': 'full', 'View study materials': 'full', 'Upload materials': 'full', 'Edit/delete materials': 'full', 'Create announcements': 'limited', Dashboard: 'view' } }],
     batches, members: faculty, students,
     joinRequests: ([['Harsh Agarwal', 'Male', 12 * 60e3], ['Lavanya S', 'Female', 3600e3], ['Farhan Qureshi', 'Male', 26 * 3600e3], ['Keerthana V', 'Female', 30 * 3600e3],
@@ -223,7 +245,7 @@ export function makeSample(): Data {
       dob: `${2003 + (i % 4)}-0${1 + i}-1${i}`, parentName: `${PARENT[i]} ${name.split(' ')[1]}`, parentPhone: `+91 9${7000000 + i * 911}45`, at: now - ago,
     })),
     exams, events, recorded, codes,
-    ...sampleCourses(now, batches),
+    ...learning, banks, marking: {},
     revenue: { ebooks: 2340000, tests: 410000, questionBanks: 345000, monthly: [142, 158, 171, 166, 188, 203, 214, 236, 229, 258, 284, 311].map((v) => v * 1000) },
     feed: {
       uploads: [

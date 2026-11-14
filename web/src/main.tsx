@@ -24,6 +24,8 @@ import { StudentDetail } from './pages/StudentDetail';
 import { StudentReport } from './pages/StudentReport';
 import { Announcements } from './pages/Announcements';
 import { CourseExplorer, Courses, Materials } from './pages/Courses';
+import { QuestionBank } from './pages/QuestionBank';
+import { Results } from './pages/Results';
 import { BatchDetail, Batches } from './pages/Batches';
 import { Faculty } from './pages/Faculty';
 import { Calendar } from './pages/Calendar';
@@ -69,6 +71,9 @@ function App() {
       case 'courses': return <Courses />;
       case 'course': return <CourseExplorer key={route.id} id={route.id} />;
       case 'materials': return <Materials />;
+      case 'question-bank': return <QuestionBank />;
+      case 'submissions': return <Exams view="submissions" />;
+      case 'results': return <Results key={route.id ?? 'all'} id={route.id} />;
       case 'assessments': return <AssessmentsHub />;
       case 'reports': return <ReportsHub />;
       case 'settings': return <Settings tab={route.tab} />;

@@ -1,3 +1,4 @@
+import { statsOf } from '../lib/banks';
 import { motion } from 'framer-motion';
 import { ArrowUpRight, BarChart3, CalendarDays, CheckCheck, ClipboardCheck, FileQuestion, FolderOpen, GraduationCap, Inbox, Layers, LineChart, Megaphone, PenLine, Trophy, UserCheck, Users } from 'lucide-react';
 import type { ReactNode } from 'react';
@@ -6,6 +7,7 @@ import { Page } from '../components/layout/Page';
 import { Avatar, Badge } from '../components/ui';
 import { href, type Route } from '../lib/router';
 import { annStatus, examStatus, useStore } from '../lib/store';
+import { scriptsOf } from '../lib/scripts';
 import { cn } from '../lib/utils';
 
 type Tile = { title: string; desc: string; icon: typeof Users; to?: Route; metric?: ReactNode; sub?: ReactNode; visual?: ReactNode; phase?: number };
@@ -84,19 +86,29 @@ export function LearningHub() {
 }
 
 export function AssessmentsHub() {
-  const { exams } = useStore();
+  const { exams, banks, templates, students, marking } = useStore();
   const st = exams.map((e) => examStatus(e));
   const count = (s: string) => st.filter((x) => x === s).length;
-  const last = exams.filter((e) => e.received).slice(0, 10).map((e) => e.received).reverse();
+  // Scripts of live and completed tests, for submissions, evaluation and results.
+  const scripts = exams.filter((_, i) => st[i] === 'live' || st[i] === 'closed').flatMap((e) => scriptsOf(e, students, banks, marking));
+  const sub = scripts.filter((s) => s.submitted), late = sub.filter((s) => s.late).length, review = sub.filter((s) => s.status === 'flagged').length;
+  const done = exams.filter((_, i) => st[i] === 'closed').slice(0, 8);
+  const avgs = done.map((e) => { const sc = scriptsOf(e, students, banks, marking).filter((s) => s.submitted); return sc.length ? Math.round(sc.reduce((a, s) => a + (s.marks / s.max) * 100, 0) / sc.length) : 0; }).reverse();
+  const passPct = sub.length ? Math.round((sub.filter((s) => s.marks / s.max >= 0.4).length / sub.length) * 100) : 0;
+  const live = banks.filter((b) => !b.deleted), qs = statsOf(live.flatMap((b) => b.questions));
+  const evalBars = (['ai', 'flagged', 'reviewed', 'published'] as const).map((k, i) => ({ label: ['AI', 'Review', 'Done', 'Out'][i], value: sub.filter((s) => s.status === k).length }));
   return (
-    <Hub crumb="Assessments" title="Assessments" desc="Build tests, run them, and evaluate submissions with AI help." tiles={[
-      { title: 'Create test', desc: 'Build a new examination', icon: PenLine, to: { page: 'exam-new' } },
-      { title: 'Question bank', desc: 'Central database of questions', icon: FileQuestion, phase: 3 },
-      { title: 'Scheduled tests', desc: 'Upcoming and live examinations', icon: CalendarDays, to: { page: 'exams' }, metric: count('scheduled') + count('live'), sub: `${count('live')} live · ${count('scheduled')} scheduled`,
-        visual: <div className="flex"><Donut size={84} thickness={12} center={<span className="text-sm">{exams.length}</span>} segments={[{ label: 'Live', value: count('live'), tone: 'pop' }, { label: 'Scheduled', value: count('scheduled'), tone: 'ink' }, { label: 'Closed', value: count('closed'), tone: 'hatch' }]} /></div> },
-      { title: 'Submissions', desc: 'Student answer submissions', icon: Inbox, to: { page: 'exams' }, metric: exams.reduce((a, e) => a + e.received, 0).toLocaleString('en-IN'), sub: 'Uploads across all tests', visual: last.length > 1 ? <Sparkline values={last} /> : null },
-      { title: 'Evaluation', desc: 'AI-assisted marking and faculty review', icon: ClipboardCheck, to: { page: 'reviews' }, metric: exams.reduce((a, e) => a + Math.max(0, e.flagged - e.reviewed), 0), sub: 'Scripts waiting for review' },
-      { title: 'Results', desc: 'Marks, rankings and downloads', icon: Trophy, phase: 3 },
+    <Hub crumb="Assessments" title="Assessments" desc="Build tests from the question bank or a paper, run them, evaluate with AI help, and publish results." tiles={[
+      { title: 'Create test', desc: 'Build a new examination', icon: PenLine, to: { page: 'exam-new' }, metric: templates.length, sub: 'saved templates to start from',
+        visual: <div className="flex flex-wrap gap-1">{templates.slice(0, 3).map((t) => <span key={t.id} className="max-w-full truncate rounded-full bg-subtle px-2 py-0.5 text-2xs ring-1 ring-border">{t.name}</span>)}{count('draft') > 0 && <Badge>{count('draft')} drafts</Badge>}</div> },
+      { title: 'Question bank', desc: 'Word and Excel banks by course and subject', icon: FileQuestion, to: { page: 'question-bank' }, metric: live.length, sub: `banks · ${qs.questions.toLocaleString('en-IN')} questions · ${qs.cases} case studies`,
+        visual: <div className="flex"><Donut size={84} thickness={12} center={<span className="text-sm">{qs.questions}</span>} segments={[{ label: 'MCQ', value: qs.mcq, tone: 'ink' }, { label: 'Descriptive', value: qs.descriptive, tone: 'pop' }]} /></div> },
+      { title: 'Scheduled tests', desc: 'Draft, scheduled, live, completed, cancelled', icon: CalendarDays, to: { page: 'exams' }, metric: count('scheduled') + count('live'), sub: `${count('live')} live · ${count('scheduled')} scheduled · ${count('closed')} completed`,
+        visual: <div className="flex"><Donut size={84} thickness={12} center={<span className="text-sm">{exams.length}</span>} segments={[{ label: 'Live', value: count('live'), tone: 'pop' }, { label: 'Scheduled', value: count('scheduled'), tone: 'ink' }, { label: 'Completed', value: count('closed'), tone: 'hatch' }]} /></div> },
+      { title: 'Submissions', desc: 'Who submitted, who hasn’t, late uploads', icon: Inbox, to: { page: 'submissions' }, metric: sub.length.toLocaleString('en-IN'), sub: `${(scripts.length - sub.length).toLocaleString('en-IN')} not submitted · ${late} late`,
+        visual: <div className="flex items-center gap-3"><Ring value={scripts.length ? (sub.length / scripts.length) * 100 : 0} size={64} stroke={8} tone="pop" label="Submitted share" /><span className="text-2xs text-muted">submitted in live and completed tests</span></div> },
+      { title: 'Evaluation', desc: 'AI-assisted marking and faculty review', icon: ClipboardCheck, to: { page: 'reviews' }, metric: review, sub: 'scripts need a faculty review', visual: <HatchedBars data={evalBars} height={70} highlight={1} /> },
+      { title: 'Results', desc: 'Marks, rankings, pass % and downloads', icon: Trophy, to: { page: 'results' }, metric: `${passPct}%`, sub: `pass rate in the last ${done.length} completed tests`, visual: avgs.length > 1 ? <Sparkline values={avgs} /> : null },
     ]} />
   );
 }
